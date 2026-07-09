@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}仪表盘{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2>仪表盘</h2>
+  <p>系统运行概览与最近采集动态</p>
+</div>
+
+<div class="quick-actions">
+  <a href="/charts" class="btn btn-primary">查看 K 线</a>
+  <a href="/symbols" class="btn btn-secondary">浏览股票池</a>
+  <a href="/jobs?status=failed" class="btn btn-secondary">失败任务</a>
+</div>
+
+<div class="stat-grid">
+  <div class="stat-card glass-panel">
+    <div class="stat-label">Active 股票</div>
+    <div class="stat-value green">{{ stats.active_stocks | default(0) }}</div>
+  </div>
+  <div class="stat-card glass-panel">
+    <div class="stat-label">已排除股票</div>
+    <div class="stat-value gold">{{ stats.excluded_stocks | default(0) }}</div>
+  </div>
+  <div class="stat-card glass-panel">
+    <div class="stat-label">日 K 记录数</div>
+    <div class="stat-value cyan">{{ "{:,}".format(stats.kline_rows | default(0)) }}</div>
+  </div>
+  <div class="stat-card glass-panel">
+    <div class="stat-label">交易日历</div>
+    <div class="stat-value">{{ stats.trading_days | default(0) }}</div>
+  </div>
+  <div class="stat-card glass-panel">
+    <div class="stat-label">Pending 任务</div>
+    <div class="stat-value gold">{{ stats.pending_jobs | default(0) }}</div>
+  </div>
+  <div class="stat-card glass-panel">
+    <div class="stat-label">失败任务</div>
+    <div class="stat-value red">{{ stats.failed_jobs | default(0) }}</div>
+  </div>
+</div>
+
+<div class="glass-panel">
+  <div style="padding:20px 24px;border-bottom:1px solid var(--border-subtle)">
+    <h3 style="font-size:16px;font-weight:600">最近采集任务</h3>
+  </div>
+  {% if stats.recent_jobs %}
+  <div class="data-table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>类型</th>
+          <th>状态</th>
+          <th>成功/总数</th>
+          <th>写入行数</th>
+          <th>创建时间</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for job in stats.recent_jobs %}
+        <tr>
+          <td class="mono">#{{ job.id }}</td>
+          <td>{{ job.job_type }}</td>
+          <td>
+            {% if job.status == 'success' %}<span class="badge badge-success">{{ status_label(job.status) }}</span>
+            {% elif job.status == 'failed' %}<span class="badge badge-failed">{{ status_label(job.status) }}</span>
+            {% elif job.status == 'pending' %}<span class="badge badge-pending">{{ status_label(job.status) }}</span>
+            {% elif job.status == 'running' %}<span class="badge badge-running">{{ status_label(job.status) }}</span>
+            {% elif job.status == 'partial_success' %}<span class="badge badge-partial">{{ status_label(job.status) }}</span>
+            {% else %}<span class="badge">{{ status_label(job.status) }}</span>{% endif %}
+          </td>
+          <td class="mono">{{ job.success_items }}/{{ job.total_items }}</td>
+          <td class="mono">{{ job.inserted_rows + job.updated_rows }}</td>
+          <td>{{ job.created_at.strftime('%Y-%m-%d %H:%M') if job.created_at else '-' }}</td>
+          <td><a href="/jobs/{{ job.id }}">详情</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <p>暂无采集任务记录</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

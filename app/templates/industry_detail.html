@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}{{ industry_name }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2>{{ industry_name }}</h2>
+  <p>行业成分股 · {{ symbols | length }} 只</p>
+</div>
+
+<div class="quick-actions">
+  <a href="/industries" class="btn btn-secondary">← 返回行业列表</a>
+</div>
+
+<div class="glass-panel">
+  {% if symbols %}
+  <div class="data-table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>代码</th>
+          <th>名称</th>
+          <th>板块</th>
+          <th>状态</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in symbols %}
+        <tr>
+          <td class="mono">{{ s.symbol }}</td>
+          <td>{{ s.name }}</td>
+          <td>{{ board_label(s.board) }}</td>
+          <td><span class="badge badge-{{ s.status if s.status in ['active','excluded','inactive'] else 'active' }}">{{ status_label(s.status) }}</span></td>
+          <td><a href="/charts?symbol={{ s.symbol }}">K 线</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state"><p>该行业暂无成分股</p></div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}采集任务{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2>采集任务</h2>
+  <p>采集执行状态 · 失败补偿 · 手动重试</p>
+</div>
+
+{% if message %}
+<div class="alert-success glass-panel" style="padding:16px 24px;margin-bottom:20px">{{ message }}</div>
+{% endif %}
+
+<form class="glass-panel filter-bar" method="get" action="/jobs">
+  <div class="form-group">
+    <label class="form-label">状态</label>
+    <select class="form-select" name="status">
+      <option value="">全部</option>
+      {% for st in ['pending','running','success','partial_success','failed'] %}
+      <option value="{{ st }}" {% if filter_status == st %}selected{% endif %}>{{ status_label(st) }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="form-group">
+    <label class="form-label">任务类型</label>
+    <select class="form-select" name="job_type">
+      <option value="">全部</option>
+      {% for jt in job_types %}
+      <option value="{{ jt }}" {% if filter_job_type == jt %}selected{% endif %}>{{ jt }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button type="submit" class="btn btn-primary">筛选</button>
+</form>
+
+<div class="glass-panel">
+  {% if jobs %}
+  <div class="data-table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>类型</th>
+          <th>状态</th>
+          <th>周期</th>
+          <th>成功/失败/跳过</th>
+          <th>写入</th>
+          <th>时间</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for job in jobs %}
+        <tr>
+          <td class="mono">#{{ job.id }}</td>
+          <td>{{ job.job_type }}</td>
+          <td>
+            {% if job.status == 'success' %}<span class="badge badge-success">{{ status_label(job.status) }}</span>
+            {% elif job.status == 'failed' %}<span class="badge badge-failed">{{ status_label(job.status) }}</span>
+            {% elif job.status == 'pending' %}<span class="badge badge-pending">{{ status_label(job.status) }}</span>
+            {% elif job.status == 'running' %}<span class="badge badge-running">{{ status_label(job.status) }}</span>
+            {% else %}<span class="badge badge-partial">{{ status_label(job.status) }}</span>{% endif %}
+          </td>
+          <td>{{ job.frequency or '-' }}</td>
+          <td class="mono">{{ job.success_items }}/{{ job.failed_items }}/{{ job.skipped_items }}</td>
+          <td class="mono">{{ job.inserted_rows + job.updated_rows }}</td>
+          <td>{{ job.created_at.strftime('%m-%d %H:%M') if job.created_at else '-' }}</td>
+          <td><a href="/jobs/{{ job.id }}">详情</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state"><p>暂无任务记录</p></div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登录 · Trade Data</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+  <div class="login-page">
+    <section class="login-hero">
+      <div class="login-hero-content">
+        <h1>掌控 A 股<br><em>多周期行情</em></h1>
+        <p>日线 · 周线 · 月线，三复权口径全覆盖。从采集、入库到可视化，一站式的专业行情数据终端。</p>
+        <div class="hero-stats">
+          <div class="hero-stat">
+            <strong>4</strong>
+            <span>板块覆盖</span>
+          </div>
+          <div class="hero-stat">
+            <strong>3×</strong>
+            <span>复权口径</span>
+          </div>
+          <div class="hero-stat">
+            <strong>24/7</strong>
+            <span>自动采集</span>
+          </div>
+        </div>
+      </div>
+      <svg class="pulse-chart" viewBox="0 0 400 80" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#d4a853" stop-opacity="0"/>
+            <stop offset="50%" stop-color="#d4a853"/>
+            <stop offset="100%" stop-color="#22d3ee" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <path d="M0,60 Q50,20 100,45 T200,30 T300,50 T400,15" fill="none" stroke="url(#lineGrad)" stroke-width="2">
+          <animate attributeName="d"
+            dur="4s" repeatCount="indefinite"
+            values="M0,60 Q50,20 100,45 T200,30 T300,50 T400,15;
+                    M0,55 Q50,40 100,25 T200,50 T300,20 T400,40;
+                    M0,60 Q50,20 100,45 T200,30 T300,50 T400,15"/>
+        </path>
+      </svg>
+    </section>
+    <section class="login-form-side">
+      <div class="login-card glass-panel">
+        <h2>欢迎回来</h2>
+        <p class="subtitle">登录以访问行情数据平台</p>
+        {% if error %}
+        <div class="alert-error">{{ error }}</div>
+        {% endif %}
+        <form method="post" action="/login">
+          <div class="form-group">
+            <label class="form-label" for="username">用户名</label>
+            <input class="form-input" type="text" id="username" name="username" required autofocus placeholder="请输入用户名">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="password">密码</label>
+            <input class="form-input" type="password" id="password" name="password" required placeholder="请输入密码">
+          </div>
+          <button type="submit" class="btn btn-primary" style="width:100%;margin-top:8px">登 录</button>
+        </form>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

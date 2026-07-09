@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}股票池{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2>股票池</h2>
+  <p>四板块当前在市个股 · 共 {{ symbols | length }} 条</p>
+</div>
+
+<form class="glass-panel filter-bar" method="get" action="/symbols">
+  <div class="form-group">
+    <label class="form-label">板块</label>
+    <select class="form-select" name="board">
+      <option value="">全部</option>
+      <option value="sh_main" {% if board == 'sh_main' %}selected{% endif %}>上证主板</option>
+      <option value="sz_main" {% if board == 'sz_main' %}selected{% endif %}>深证主板</option>
+      <option value="chinext" {% if board == 'chinext' %}selected{% endif %}>创业板</option>
+      <option value="star" {% if board == 'star' %}selected{% endif %}>科创板</option>
+    </select>
+  </div>
+  <div class="form-group">
+    <label class="form-label">状态</label>
+    <select class="form-select" name="status">
+      <option value="">Active（默认）</option>
+      <option value="active" {% if status == 'active' %}selected{% endif %}>正常</option>
+      <option value="excluded" {% if status == 'excluded' %}selected{% endif %}>已排除</option>
+      <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>退市</option>
+    </select>
+  </div>
+  <div class="form-group" style="flex:2">
+    <label class="form-label">关键词</label>
+    <input class="form-input" type="text" name="keyword" value="{{ keyword or '' }}" placeholder="代码 / 名称">
+  </div>
+  <label class="checkbox-label" style="padding-bottom:12px">
+    <input type="checkbox" name="include_excluded" value="true" {% if include_excluded %}checked{% endif %}> 包含已排除
+  </label>
+  <button type="submit" class="btn btn-primary">筛选</button>
+</form>
+
+<div class="glass-panel">
+  {% if symbols %}
+  <div class="data-table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>代码</th>
+          <th>名称</th>
+          <th>板块</th>
+          <th>行业</th>
+          <th>上市日</th>
+          <th>状态</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in symbols %}
+        <tr>
+          <td class="mono">{{ s.symbol }}</td>
+          <td>{{ s.name }}</td>
+          <td>{{ board_label(s.board) }}</td>
+          <td>{{ s.current_industry or '-' }}</td>
+          <td class="mono">{{ s.ipo_date or '-' }}</td>
+          <td>
+            {% if s.status == 'active' %}<span class="badge badge-active">{{ status_label(s.status) }}</span>
+            {% elif s.status == 'excluded' %}<span class="badge badge-excluded">{{ status_label(s.status) }}</span>
+            {% else %}<span class="badge badge-inactive">{{ status_label(s.status) }}</span>{% endif %}
+          </td>
+          <td><a href="/charts?symbol={{ s.symbol }}">看 K 线</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state"><p>没有匹配的股票</p></div>
+  {% endif %}
+</div>
+{% endblock %}

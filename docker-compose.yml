@@ -1,0 +1,91 @@
+name: ${COMPOSE_PROJECT_NAME:-trade_data}
+
+# First boot: `docker compose up -d` (or scripts/compose_up.sh) runs migrate once before api/worker.
+# Upgrades: Compose does not reliably re-run a completed migrate container. Always run
+# `docker compose run --rm migrate` or `scripts/compose_upgrade.sh` before recreating services.
+
+x-app-image: &app-image
+  build: .
+  image: ${COMPOSE_PROJECT_NAME:-trade_data}-app
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - trade_data_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - trade_data_backend
+
+  migrate:
+    <<: *app-image
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: alembic upgrade head
+    restart: "no"
+    networks:
+      - trade_data_backend
+
+  api:
+    <<: *app-image
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    command: uvicorn app.main:app --host 0.0.0.0 --port ${API_CONTAINER_PORT:-18081}
+    ports:
+      - "127.0.0.1:${API_HOST_PORT:-18080}:${API_CONTAINER_PORT:-18081}"
+    networks:
+      - trade_data_backend
+
+  collector:
+    <<: *app-image
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    command: python scripts/daily_update.py
+    profiles:
+      - manual
+    networks:
+      - trade_data_backend
+
+  pending-worker:
+    <<: *app-image
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    command: python scripts/run_pending_jobs.py --loop --sleep 10 --limit ${PENDING_JOB_RUNNER_LIMIT:-20}
+    networks:
+      - trade_data_backend
+
+volumes:
+  trade_data_pgdata:
+
+networks:
+  trade_data_backend:
+    driver: bridge

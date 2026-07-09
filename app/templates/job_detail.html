@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}任务 #{{ job.id }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2>任务 #{{ job.id }}</h2>
+  <p>{{ job.job_type }} · {{ status_label(job.status) }}</p>
+</div>
+
+<div class="quick-actions">
+  <a href="/jobs" class="btn btn-secondary">← 返回列表</a>
+  {% if job.status in ['failed', 'partial_success'] %}
+  <form method="post" action="/jobs/{{ job.id }}/retry" style="display:inline">
+    <button type="submit" class="btn btn-primary">重试失败项</button>
+  </form>
+  {% endif %}
+</div>
+
+{% if message %}
+<div class="alert-success glass-panel" style="padding:16px 24px;margin-bottom:20px">{{ message }}</div>
+{% endif %}
+
+<div class="glass-panel detail-grid">
+  <div class="detail-item"><div class="label">状态</div><div class="value">{{ status_label(job.status) }}</div></div>
+  <div class="detail-item"><div class="label">类型</div><div class="value">{{ job.job_type }}</div></div>
+  <div class="detail-item"><div class="label">总数</div><div class="value">{{ job.total_items }}</div></div>
+  <div class="detail-item"><div class="label">成功</div><div class="value" style="color:var(--green)">{{ job.success_items }}</div></div>
+  <div class="detail-item"><div class="label">失败</div><div class="value" style="color:var(--red)">{{ job.failed_items }}</div></div>
+  <div class="detail-item"><div class="label">跳过</div><div class="value">{{ job.skipped_items }}</div></div>
+  <div class="detail-item"><div class="label">插入</div><div class="value">{{ job.inserted_rows }}</div></div>
+  <div class="detail-item"><div class="label">更新</div><div class="value">{{ job.updated_rows }}</div></div>
+  {% if job.error_message %}
+  <div class="detail-item" style="grid-column:1/-1"><div class="label">错误</div><div class="value" style="color:var(--red);font-size:13px">{{ job.error_message }}</div></div>
+  {% endif %}
+</div>
+
+<div class="glass-panel">
+  <div style="padding:16px 24px;border-bottom:1px solid var(--border-subtle);display:flex;justify-content:space-between;align-items:center">
+    <h3 style="font-size:15px;font-weight:600">任务明细</h3>
+    <form method="get" style="display:flex;gap:8px;align-items:center">
+      <input type="hidden" name="limit" value="{{ item_limit }}">
+      <select class="form-select" name="item_status" style="width:auto;padding:8px 12px">
+        <option value="">全部状态</option>
+        <option value="failed" {% if item_status == 'failed' %}selected{% endif %}>失败</option>
+        <option value="success" {% if item_status == 'success' %}selected{% endif %}>成功</option>
+        <option value="exhausted" {% if item_status == 'exhausted' %}selected{% endif %}>已耗尽</option>
+      </select>
+      <button type="submit" class="btn btn-secondary btn-sm">筛选</button>
+    </form>
+  </div>
+  {% if items %}
+  <div class="data-table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>股票</th>
+          <th>周期</th>
+          <th>复权</th>
+          <th>日期范围</th>
+          <th>状态</th>
+          <th>尝试</th>
+          <th>错误</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        <tr>
+          <td class="mono">{{ item.id }}</td>
+          <td class="mono">{{ item.symbol or '-' }}</td>
+          <td>{{ frequency_label(item.frequency) if item.frequency else '-' }}</td>
+          <td>{{ adjust_label(item.adjust_flag) if item.adjust_flag else '-' }}</td>
+          <td class="mono">{{ item.start_date or '' }} ~ {{ item.end_date or '' }}</td>
+          <td><span class="badge badge-{{ item.status if item.status in ['success','failed','pending','running','exhausted'] else 'pending' }}">{{ status_label(item.status) }}</span></td>
+          <td class="mono">{{ item.attempt_count }}</td>
+          <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ item.error_message or '-' }}</td>
+          <td>
+            {% if item.status in ['failed', 'exhausted'] and not item.retry_of_item_id %}
+            <form method="post" action="/job-items/{{ item.id }}/retry" style="display:inline">
+              <button type="submit" class="btn btn-ghost btn-sm">重试</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if item_total > item_limit %}
+  <div class="pagination-bar">
+    <span class="pagination-info">
+      显示 {{ item_offset + 1 }}–{{ item_offset + items|length }} / 共 {{ item_total }} 条
+    </span>
+    <div class="pagination-actions">
+      {% if item_offset > 0 %}
+      <a class="btn btn-secondary btn-sm" href="?offset={{ at_least(item_offset - item_limit) }}&limit={{ item_limit }}{% if item_status %}&item_status={{ item_status }}{% endif %}">上一页</a>
+      {% endif %}
+      {% if item_offset + items|length < item_total %}
+      <a class="btn btn-secondary btn-sm" href="?offset={{ item_offset + item_limit }}&limit={{ item_limit }}{% if item_status %}&item_status={{ item_status }}{% endif %}">下一页</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+  {% else %}
+  <div class="empty-state"><p>无明细记录</p></div>
+  {% endif %}
+</div>
+{% endblock %}

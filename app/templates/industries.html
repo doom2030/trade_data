@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}行业分类{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2>行业分类</h2>
+  <p>baostock 当前行业快照 · 非历史行业</p>
+</div>
+
+<div class="glass-panel">
+  {% if industries %}
+  <div class="data-table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>行业名称</th>
+          <th>股票数量</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ind in industries %}
+        <tr>
+          <td>{{ ind.industry_name }}</td>
+          <td class="mono">{{ ind.symbol_count }}</td>
+          <td><a href="/industries/{{ ind.industry_name | quote_path }}">查看成分股</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state"><p>暂无行业数据，请先运行行业同步</p></div>
+  {% endif %}
+</div>
+{% endblock %}

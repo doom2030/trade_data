@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+sqlalchemy
+psycopg[binary]
+alembic
+pydantic-settings
+typer
+baostock
+pandas
+python-dotenv
+tenacity
+pytest
+httpx
+jinja2
+python-multipart
+itsdangerous
+ruff

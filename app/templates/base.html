@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Trade Data{% endblock %} · A股行情数据平台</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">T</div>
+        <div class="brand-text">
+          <h1>Trade Data</h1>
+          <span>A-Share Terminal</span>
+        </div>
+      </div>
+      <nav>
+        <ul class="nav-list">
+          <li>
+            <a href="/" class="nav-link {% if active_page == 'dashboard' %}active{% endif %}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+              仪表盘
+            </a>
+          </li>
+          <li>
+            <a href="/charts" class="nav-link {% if active_page == 'charts' %}active{% endif %}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-10"/><path d="M17 5h4v4"/></svg>
+              K 线图表
+            </a>
+          </li>
+          <li>
+            <a href="/symbols" class="nav-link {% if active_page == 'symbols' %}active{% endif %}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+              股票池
+            </a>
+          </li>
+          <li>
+            <a href="/industries" class="nav-link {% if active_page == 'industries' %}active{% endif %}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+              行业分类
+            </a>
+          </li>
+          <li>
+            <a href="/jobs" class="nav-link {% if active_page == 'jobs' %}active{% endif %}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+              采集任务
+            </a>
+          </li>
+        </ul>
+      </nav>
+      <div class="sidebar-footer">
+        <div>{{ username }}</div>
+        <form action="/logout" method="post" style="margin-top:8px">
+          <button type="submit" class="btn btn-ghost btn-sm">退出登录</button>
+        </form>
+      </div>
+    </aside>
+    <main class="main-content">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+  <script src="/static/js/app.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

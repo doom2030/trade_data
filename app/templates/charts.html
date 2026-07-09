@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}K 线图表{% endblock %}
+{% block head %}
+<script src="/static/js/lightweight-charts.standalone.production.js"></script>
+{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2>K 线图表</h2>
+  <p>多周期蜡烛图 · 成交量 · 停牌标记 · 手动补采</p>
+</div>
+
+<div class="glass-panel chart-toolbar">
+  <div class="form-group" style="min-width:200px">
+    <label class="form-label">股票</label>
+    <select class="form-select" id="symbolSelect">
+      {% for s in symbols %}
+      <option value="{{ s.symbol }}" data-status="{{ s.status }}" data-board="{{ s.board }}" data-industry="{{ s.current_industry or '' }}" {% if s.symbol == default_symbol %}selected{% endif %}>
+        {{ s.symbol }} {{ s.name }}
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="form-group">
+    <label class="form-label">周期</label>
+    <select class="form-select" id="frequency">
+      <option value="day" {% if default_frequency == 'day' %}selected{% endif %}>日线</option>
+      <option value="week" {% if default_frequency == 'week' %}selected{% endif %}>周线</option>
+      <option value="month" {% if default_frequency == 'month' %}selected{% endif %}>月线</option>
+    </select>
+  </div>
+  <div class="form-group">
+    <label class="form-label">复权</label>
+    <select class="form-select" id="adjust">
+      <option value="forward" {% if default_adjust == 'forward' %}selected{% endif %}>前复权</option>
+      <option value="none">不复权</option>
+      <option value="backward">后复权</option>
+    </select>
+  </div>
+  <div class="form-group">
+    <label class="form-label">起始</label>
+    <input class="form-input" type="date" id="startDate" value="{{ default_start }}">
+  </div>
+  <div class="form-group">
+    <label class="form-label">结束</label>
+    <input class="form-input" type="date" id="endDate" value="{{ default_end }}">
+  </div>
+  <label class="checkbox-label" style="padding-bottom:12px">
+    <input type="checkbox" id="includeExcluded" {% if include_excluded %}checked{% endif %}> 包含已排除
+  </label>
+  <button class="btn btn-primary" id="loadBtn">加载</button>
+  <button class="btn btn-secondary" id="backfillBtn">补采</button>
+</div>
+
+<div class="glass-panel chart-container">
+  <div class="stock-info-bar" id="stockInfo"></div>
+  <div class="chart-status" id="chartStatus">选择股票并点击加载</div>
+  <div id="priceChart"></div>
+  <div id="volumeChart"></div>
+</div>
+<div id="jobStatus" class="chart-status" style="margin-top:12px"></div>
+{% endblock %}
+{% block scripts %}
+<script>
+  window.CHART_CONFIG = {
+    maxNaturalDays: {{ max_natural_days }},
+    defaultSymbol: "{{ default_symbol or '' }}",
+  };
+</script>
+<script src="/static/js/charts.js"></script>
+{% endblock %}
