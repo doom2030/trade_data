@@ -50,7 +50,7 @@ services:
         condition: service_completed_successfully
     command: uvicorn app.main:app --host 0.0.0.0 --port ${API_CONTAINER_PORT:-18081}
     ports:
-      - "127.0.0.1:${API_HOST_PORT:-18080}:${API_CONTAINER_PORT:-18081}"
+      - "${API_HOST_BIND:-127.0.0.1}:${API_HOST_PORT:-18080}:${API_CONTAINER_PORT:-18081}"
     networks:
       - trade_data_backend
 

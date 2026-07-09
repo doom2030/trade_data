@@ -186,7 +186,7 @@ ruff check .
 
 ## 发布部署（Docker Compose）
 
-推荐在云服务器上使用 Docker Compose 部署。本项目使用独立 Compose 项目名、独立 volume 与 bridge 网络，**不与宿主机上其他 PostgreSQL / Web 服务抢占 5432、80、443**；API 默认只绑定 `127.0.0.1:18080`，由 Nginx / Caddy 反代对外。
+推荐在云服务器上使用 Docker Compose 部署。本项目使用独立 Compose 项目名、独立 volume 与 bridge 网络，**不与宿主机上其他 PostgreSQL / Web 服务抢占 5432、80、443**；API 默认只绑定 `127.0.0.1:18080`，由 Nginx / Caddy 反代对外。如需临时直接通过公网 IP 访问，可在 `.env` 中设置 `API_HOST_BIND=0.0.0.0`，并确保安全组 / 防火墙放行 `API_HOST_PORT`。
 
 ### 服务说明
 
