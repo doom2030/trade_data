@@ -175,7 +175,7 @@ alembic upgrade head
 uvicorn app.main:app --reload --port 8000
 ```
 
-默认登录账号见 `.env` 中 `ADMIN_USERNAME` / `ADMIN_PASSWORD`（示例默认为 `admin` / `admin`，**生产环境务必修改**）。
+默认登录账号见 `.env` 中 `ADMIN_USERNAME` / `ADMIN_PASSWORD`（示例默认为 `admin` / `change-me`，**生产环境务必修改**）。
 
 ### 测试与 Lint
 
@@ -207,6 +207,7 @@ ruff check .
 ```bash
 cp .env.example .env
 # 必改：POSTGRES_PASSWORD、SECRET_KEY、ADMIN_PASSWORD
+# 如果修改 POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB，也要同步修改 DATABASE_URL
 ```
 
 2. 确认 `API_HOST_PORT`（默认 `18080`）未被占用。
