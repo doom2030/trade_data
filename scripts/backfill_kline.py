@@ -33,6 +33,11 @@ def main(
         "--wait-seconds",
         help="等待采集锁的最长时间（秒），仅 --wait 时生效",
     ),
+    skip_existing: bool = typer.Option(
+        True,
+        "--skip-existing/--no-skip-existing",
+        help="默认跳过已入库区间，只向 baostock 请求缺口；加 --no-skip-existing 强制整段重拉",
+    ),
 ):
     setup_logging()
     try:
@@ -57,8 +62,21 @@ def main(
                 typer.echo("提示: 加 --wait 可排队等待锁；或先等 pending-worker 跑完当前任务。")
                 raise typer.Exit(1)
             for freq in freqs:
-                job = backfill_klines(session, client, freq, adjs, start, end, symbols)
-                typer.echo(f"Backfill {freq}: job {job.id} status={job.status}")
+                job = backfill_klines(
+                    session,
+                    client,
+                    freq,
+                    adjs,
+                    start,
+                    end,
+                    symbols,
+                    skip_existing=skip_existing,
+                )
+                typer.echo(
+                    f"Backfill {freq}: job {job.id} status={job.status} "
+                    f"success={job.success_items} skipped={job.skipped_items} "
+                    f"failed={job.failed_items} skip_existing={skip_existing}"
+                )
     finally:
         client.logout()
         session.close()

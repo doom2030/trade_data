@@ -295,3 +295,118 @@ class TestGetMissedTradingDays:
 
         missed = get_missed_trading_days(FakeSession(), d1)
         assert missed == [d1]
+
+
+class TestMissingKlineRanges:
+    def test_collapse_sorted_dates_to_ranges(self):
+        from collector.kline_sync import collapse_sorted_dates_to_ranges
+
+        dates = [
+            date(2026, 7, 1),
+            date(2026, 7, 2),
+            date(2026, 7, 4),
+            date(2026, 7, 5),
+            date(2026, 7, 6),
+        ]
+        assert collapse_sorted_dates_to_ranges(dates) == [
+            (date(2026, 7, 1), date(2026, 7, 2)),
+            (date(2026, 7, 4), date(2026, 7, 6)),
+        ]
+
+    def test_day_skips_covered_and_suspended(self):
+        from collector.kline_sync import missing_kline_ranges
+
+        trading = [
+            date(2026, 7, 1),
+            date(2026, 7, 2),
+            date(2026, 7, 3),
+            date(2026, 7, 4),
+        ]
+        existing = [date(2026, 7, 1), date(2026, 7, 2)]
+        suspended = [date(2026, 7, 3)]
+
+        class FakeSession:
+            def scalars(self, query):
+                class Result:
+                    def __init__(self, values):
+                        self.values = values
+
+                    def all(self):
+                        return self.values
+
+                q = str(query).lower()
+                if "stock_suspension" in q:
+                    return Result(suspended)
+                if "trade_calendar" in q:
+                    return Result(trading)
+                # kline_day existing dates
+                return Result(existing)
+
+        ranges = missing_kline_ranges(
+            FakeSession(),
+            symbol="sz.002240",
+            frequency="day",
+            adjust_flag="forward",
+            start=date(2026, 7, 1),
+            end=date(2026, 7, 4),
+        )
+        assert ranges == [(date(2026, 7, 4), date(2026, 7, 4))]
+
+    def test_day_complete_returns_empty(self):
+        from collector.kline_sync import missing_kline_ranges
+
+        trading = [date(2026, 7, 1), date(2026, 7, 2)]
+        existing = trading[:]
+
+        class FakeSession:
+            def scalars(self, query):
+                class Result:
+                    def __init__(self, values):
+                        self.values = values
+
+                    def all(self):
+                        return self.values
+
+                q = str(query).lower()
+                if "stock_suspension" in q:
+                    return Result([])
+                if "trade_calendar" in q:
+                    return Result(trading)
+                return Result(existing)
+
+        ranges = missing_kline_ranges(
+            FakeSession(),
+            symbol="sh.600000",
+            frequency="day",
+            adjust_flag="none",
+            start=date(2026, 7, 1),
+            end=date(2026, 7, 2),
+        )
+        assert ranges == []
+
+    def test_week_fills_leading_gap(self):
+        from collector.kline_sync import missing_kline_ranges
+
+        existing = [date(2026, 3, 1), date(2026, 3, 8)]
+
+        class FakeSession:
+            def scalars(self, query):
+                class Result:
+                    def __init__(self, values):
+                        self.values = values
+
+                    def all(self):
+                        return self.values
+
+                return Result(existing)
+
+        ranges = missing_kline_ranges(
+            FakeSession(),
+            symbol="sh.600000",
+            frequency="week",
+            adjust_flag="forward",
+            start=date(2026, 1, 1),
+            end=date(2026, 3, 15),
+        )
+        assert ranges[0] == (date(2026, 1, 1), date(2026, 2, 28))
+        assert ranges[-1][0] == date(2026, 3, 9)

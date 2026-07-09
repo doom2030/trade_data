@@ -358,6 +358,8 @@ docker compose --env-file .env cp postgres:/tmp/trade_data.dump ./backups/trade_
 
 `backfill_kline.py` 的 `--frequency` 支持 `day` / `week` / `month` / `all`；`--adjust` 支持 `none` / `forward` / `backward` / `all`。
 
+默认 `--skip-existing`：按库内已有 K 线与交易日历比对，**只向 baostock 请求缺口区间**（已齐的明细会标记为 skipped）。若需整段重拉，加 `--no-skip-existing`。
+
 ## API 说明
 
 所有 JSON API 前缀为 `/api`，使用 **Session Cookie** 鉴权（先登录再调用）。登录后也可访问 `/docs` 查看 OpenAPI。
