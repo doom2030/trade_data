@@ -104,11 +104,10 @@ def _try_lock(conn: Connection, lock_id: int) -> bool:
 
 
 def _lock_blocking(conn: Connection, lock_id: int, timeout_seconds: int | None) -> bool:
+    # PostgreSQL SET does not accept bind parameters; interpolate a sanitized int.
     if timeout_seconds is not None and timeout_seconds > 0:
-        conn.execute(
-            text("SET lock_timeout = :timeout"),
-            {"timeout": f"{int(timeout_seconds)}s"},
-        )
+        timeout_ms = max(1, int(timeout_seconds)) * 1000
+        conn.execute(text(f"SET lock_timeout = {timeout_ms}"))
     try:
         conn.execute(text("SELECT pg_advisory_lock(:id)"), {"id": lock_id})
         return True
