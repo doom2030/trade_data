@@ -88,6 +88,7 @@ def sync_stock_meta(session: Session, client: BaostockClient, snapshot_date: dat
 
             upserted += 1
 
+        job.inserted_rows = upserted
         finalize_job(session, job)
         session.commit()
         return upserted
