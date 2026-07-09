@@ -88,8 +88,8 @@ def sync_stock_meta(session: Session, client: BaostockClient, snapshot_date: dat
 
             upserted += 1
 
-        job.inserted_rows = upserted
         finalize_job(session, job)
+        job.inserted_rows = upserted
         session.commit()
         return upserted
     except Exception as e:

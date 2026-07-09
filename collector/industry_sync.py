@@ -47,8 +47,8 @@ def sync_industry(session: Session, client: BaostockClient, snapshot_date: date)
             session.execute(stmt)
             upserted += 1
 
-        job.inserted_rows = upserted
         finalize_job(session, job)
+        job.inserted_rows = upserted
         session.commit()
         return upserted
     except Exception as e:

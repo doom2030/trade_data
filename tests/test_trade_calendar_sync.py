@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 
 from app.models import TradeCalendar
-from collector.trade_calendar_sync import ensure_trade_calendar_for_date
+from collector.trade_calendar_sync import ensure_trade_calendar_for_date, sync_trade_calendar
 
 
 class TestEnsureTradeCalendarForDate:
@@ -43,3 +43,44 @@ class TestEnsureTradeCalendarForDate:
         monkeypatch.setattr("collector.trade_calendar_sync.sync_trade_calendar", fake_sync)
         assert ensure_trade_calendar_for_date(session, None, target, window_days=7) is True
         assert synced_ranges == [(target - timedelta(days=7), target + timedelta(days=7))]
+
+
+class TestSyncTradeCalendar:
+    def test_job_rows_preserved_for_no_item_job(self):
+        class FakeResult:
+            def all(self):
+                return []
+
+        class FakeSession:
+            def __init__(self):
+                self.job = None
+
+            def add(self, obj):
+                self.job = obj
+
+            def flush(self):
+                if self.job and self.job.id is None:
+                    self.job.id = 1
+
+            def commit(self):
+                pass
+
+            def execute(self, _stmt):
+                pass
+
+            def scalars(self, _query):
+                return FakeResult()
+
+        class FakeClient:
+            def query_trade_calendar(self, _start, _end):
+                return [
+                    {"trade_date": date(2026, 7, 1), "is_trading_day": True},
+                    {"trade_date": date(2026, 7, 2), "is_trading_day": True},
+                ]
+
+        session = FakeSession()
+        count = sync_trade_calendar(session, FakeClient(), date(2026, 7, 1), date(2026, 7, 2))
+
+        assert count == 2
+        assert session.job.inserted_rows == 2
+        assert session.job.status == "success"
