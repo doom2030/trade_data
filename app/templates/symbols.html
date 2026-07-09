@@ -3,18 +3,30 @@
 {% block content %}
 <div class="page-header">
   <h2>股票池</h2>
-  <p>四板块当前在市个股 · 共 {{ symbols | length }} 条</p>
+  <p>四板块当前在市个股 · 本页 {{ symbols | length }} 条{% if board_counts.get('') is not none %} · 全市场 {{ board_counts[''] }} 条{% endif %}</p>
 </div>
 
+<nav class="board-tabs glass-panel" aria-label="板块切换">
+  {% for tab in board_tabs %}
+  <a
+    class="board-tab {% if board == tab.code %}active{% endif %}"
+    href="/symbols?board={{ tab.code }}{% if status %}&status={{ status }}{% endif %}{% if keyword %}&keyword={{ keyword | urlencode }}{% endif %}{% if include_excluded %}&include_excluded=true{% endif %}"
+  >
+    <span class="board-tab-label">{{ tab.label }}</span>
+    <span class="board-tab-count">{{ board_counts.get(tab.code, 0) }}</span>
+  </a>
+  {% endfor %}
+</nav>
+
 <form class="glass-panel filter-bar" method="get" action="/symbols">
-  <div class="form-group">
-    <label class="form-label">板块</label>
-    <select class="form-select" name="board">
-      <option value="">全部</option>
-      <option value="sh_main" {% if board == 'sh_main' %}selected{% endif %}>上证主板</option>
-      <option value="sz_main" {% if board == 'sz_main' %}selected{% endif %}>深证主板</option>
-      <option value="chinext" {% if board == 'chinext' %}selected{% endif %}>创业板</option>
-      <option value="star" {% if board == 'star' %}selected{% endif %}>科创板</option>
+  <input type="hidden" name="board" value="{{ board }}">
+  <div class="form-group" style="flex:1.4;min-width:200px">
+    <label class="form-label">行业</label>
+    <select class="form-select" name="industry">
+      <option value="">全部行业</option>
+      {% for name in industries %}
+      <option value="{{ name }}" {% if industry == name %}selected{% endif %}>{{ name }}</option>
+      {% endfor %}
     </select>
   </div>
   <div class="form-group">
@@ -34,7 +46,17 @@
     <input type="checkbox" name="include_excluded" value="true" {% if include_excluded %}checked{% endif %}> 包含已排除
   </label>
   <button type="submit" class="btn btn-primary">筛选</button>
+  {% if industry or keyword or status or include_excluded %}
+  <a class="btn btn-secondary" href="/symbols?board={{ board }}">重置</a>
+  {% endif %}
 </form>
+
+{% if industry %}
+<div class="active-filter-hint">
+  当前行业：<strong>{{ industry }}</strong>
+  <a href="/symbols?board={{ board }}{% if status %}&status={{ status }}{% endif %}{% if keyword %}&keyword={{ keyword | urlencode }}{% endif %}{% if include_excluded %}&include_excluded=true{% endif %}">清除行业</a>
+</div>
+{% endif %}
 
 <div class="glass-panel">
   {% if symbols %}
@@ -44,7 +66,7 @@
         <tr>
           <th>代码</th>
           <th>名称</th>
-          <th>板块</th>
+          {% if not board %}<th>板块</th>{% endif %}
           <th>行业</th>
           <th>上市日</th>
           <th>状态</th>
@@ -56,8 +78,12 @@
         <tr>
           <td class="mono">{{ s.symbol }}</td>
           <td>{{ s.name }}</td>
-          <td>{{ board_label(s.board) }}</td>
-          <td>{{ s.current_industry or '-' }}</td>
+          {% if not board %}<td>{{ board_label(s.board) }}</td>{% endif %}
+          <td>
+            {% if s.current_industry %}
+            <a class="industry-link" href="/symbols?board={{ board }}&industry={{ s.current_industry | urlencode }}{% if status %}&status={{ status }}{% endif %}{% if keyword %}&keyword={{ keyword | urlencode }}{% endif %}{% if include_excluded %}&include_excluded=true{% endif %}">{{ s.current_industry }}</a>
+            {% else %}-{% endif %}
+          </td>
           <td class="mono">{{ s.ipo_date or '-' }}</td>
           <td>
             {% if s.status == 'active' %}<span class="badge badge-active">{{ status_label(s.status) }}</span>

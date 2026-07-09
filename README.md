@@ -126,7 +126,9 @@ Internet
 |------|------|
 | `stock_master` | 股票主数据（板块、状态、上市/退市日期） |
 | `stock_status_history` | 股票状态变更历史 |
-| `stock_industry_current` | 当前行业分类 |
+| `stock_industry_current` | baostock 证监会行业（对照用） |
+| `industry_board` | 行业板块主数据（同花顺 / 申万兜底） |
+| `stock_industry_board` | 股票 ↔ 行业板块（前端主分类） |
 | `trade_calendar` | 交易日历 |
 | `stock_suspension` | 日线停牌推断记录 |
 | `kline_day` / `kline_week` / `kline_month` | 分周期 K 线（含三套复权） |
@@ -134,14 +136,15 @@ Internet
 | `collect_job_item` | 任务明细（按股票 × 周期 × 复权） |
 | `quality_check_result` | 质量检查结果 |
 
-迁移由 Alembic 管理，当前 head revision 为 `002`（外键约束）。查看状态：`alembic current` 或访问 `/health`。
+迁移由 Alembic 管理，当前 head revision 为 `003`（行业板块表）。查看状态：`alembic current` 或访问 `/health`。
 
 ### 任务类型（`job_type`）
 
 | 类型 | 说明 |
 |------|------|
 | `sync_stock_meta` | 同步股票池 |
-| `sync_industry` | 同步行业 |
+| `sync_industry` | 同步 baostock 证监会行业（对照） |
+| `sync_industry_boards` | 同步行业板块（同花顺主源，失败降级申万二级） |
 | `sync_trade_calendar` | 同步交易日历 |
 | `backfill_kline` | 历史回填 |
 | `daily_update` | 单日日线更新 |
@@ -234,8 +237,8 @@ curl -s http://127.0.0.1:18080/health | jq .
   "database": "ok",
   "schema": "ok",
   "migration": "ok",
-  "migration_current": "002",
-  "migration_expected": "002"
+  "migration_current": "003",
+  "migration_expected": "003"
 }
 ```
 
@@ -265,6 +268,7 @@ curl -s http://127.0.0.1:18080/health | jq .
 ```bash
 docker compose --env-file .env run --rm collector python scripts/sync_trade_calendar.py
 docker compose --env-file .env run --rm collector python scripts/sync_stock_meta.py
+docker compose --env-file .env run --rm collector python scripts/sync_industry_boards.py
 docker compose --env-file .env run --rm collector python scripts/backfill_kline.py --frequency all --adjust all
 docker compose --env-file .env run --rm collector python scripts/daily_update.py
 ```
@@ -307,8 +311,11 @@ pending 任务由常驻 `pending-worker` 消费；采集脚本通过 cron 触发
 # 失败补偿（日更脚本内也会触发，可按需保留）
 0 21 * * 1-5 cd /path/to/trade_data && docker compose --env-file .env run --rm collector python scripts/retry_failed_jobs.py
 
-# 每周同步行业
-0 22 * * 5 cd /path/to/trade_data && docker compose --env-file .env run --rm collector python scripts/sync_industry.py
+# 每周同步行业板块（同花顺主源，失败自动降级申万二级）
+0 22 * * 5 cd /path/to/trade_data && docker compose --env-file .env run --rm collector python scripts/sync_industry_boards.py
+
+# 可选：同步 baostock 证监会行业（对照）
+30 22 * * 5 cd /path/to/trade_data && docker compose --env-file .env run --rm collector python scripts/sync_industry.py
 ```
 
 ### 手动备份
@@ -329,7 +336,7 @@ docker compose --env-file .env cp postgres:/tmp/trade_data.dump ./backups/trade_
 | `/` | 仪表盘 |
 | `/charts` | K 线图表 |
 | `/symbols` | 股票池 |
-| `/industries` | 行业 |
+| `/industries` | 行业板块（拼音 A~E…U~Z 分组） |
 | `/jobs` | 任务列表 |
 | `/jobs/{id}` | 任务详情（支持明细分页） |
 
@@ -340,7 +347,8 @@ docker compose --env-file .env cp postgres:/tmp/trade_data.dump ./backups/trade_
 | 脚本 | 说明 |
 |------|------|
 | `scripts/sync_stock_meta.py` | 同步股票池 |
-| `scripts/sync_industry.py` | 同步行业 |
+| `scripts/sync_industry_boards.py` | 同步行业板块（`--source auto|ths|sw`） |
+| `scripts/sync_industry.py` | 同步 baostock 证监会行业（对照） |
 | `scripts/sync_trade_calendar.py` | 同步交易日历 |
 | `scripts/backfill_kline.py` | 历史 K 线回填 |
 | `scripts/daily_update.py` | 日线增量（含 catchup、元数据同步） |
@@ -362,8 +370,8 @@ docker compose --env-file .env cp postgres:/tmp/trade_data.dump ./backups/trade_
 | POST | `/login` | 登录（表单：`username`、`password`） |
 | POST | `/logout` | 退出登录 |
 | GET | `/api/symbols` | 股票列表 |
-| GET | `/api/industries` | 行业列表 |
-| GET | `/api/industries/{name}/symbols` | 行业成分股 |
+| GET | `/api/industries` | 行业板块列表；`?grouped=true` 按拼音段分组（同花顺风格） |
+| GET | `/api/industries/{name}/symbols` | 行业板块成分股 |
 | GET | `/api/klines/{frequency}` | K 线查询（`frequency`= day/week/month） |
 | POST | `/api/klines/backfill` | 创建手动补采任务 |
 | GET | `/api/jobs` | 任务列表（`limit` ≤ 200） |
@@ -401,9 +409,9 @@ curl -s -b /tmp/trade_cookies \
 curl -s -b /tmp/trade_cookies \
   "http://127.0.0.1:18080/api/klines/day?symbol=sz.300750&start=2025-01-01&end=2025-06-30&adjust=forward" | jq .
 
-# 5. 查询行业
+# 5. 查询行业板块（拼音分组）
 curl -s -b /tmp/trade_cookies \
-  "http://127.0.0.1:18080/api/industries" | jq .
+  "http://127.0.0.1:18080/api/industries?grouped=true" | jq .
 
 # 6. 查询任务列表
 curl -s -b /tmp/trade_cookies \
@@ -496,8 +504,14 @@ K 线响应示例（字段节选）：
 - **故障排查**：
   - `/health` 中 `schema=missing_tables` → 检查 migrate 是否成功执行
   - `/health` 中 `migration=behind` → 运行 `docker compose run --rm migrate`
-  - 任务长期 `pending` → 确认 `pending-worker` 容器在运行
-  - 采集脚本立即退出 → 可能未获得全局采集锁，等待其他脚本结束
+  - 任务长期 `pending` → 确认 `pending-worker` 容器在运行，并看其日志是否在执行
+  - 采集锁死循环（worker 日志反复 `Failed to acquire collect lock` / `releasing job N back to pending`）→ 多为旧版连接池泄漏了会话级锁。先重建镜像再强制释放：
+    ```bash
+    ./scripts/compose_upgrade.sh
+    docker compose run --rm collector python scripts/check_collect_lock.py --release
+    docker compose restart pending-worker
+    ```
+  - 采集脚本提示无法获取采集锁（偶发）→ 同一时间只能有一个 baostock 采集进程；可 `check_collect_lock.py` 查看持锁方，手动回填可加 `--wait`
   - 页面 401 / 跳转登录 → Session 过期，重新登录
 
 ## 常见问题

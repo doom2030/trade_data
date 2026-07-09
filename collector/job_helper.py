@@ -65,16 +65,45 @@ def create_job_item(
     return item
 
 
-def finalize_job(session: Session, job: CollectJob) -> None:
+def finalize_job(
+    session: Session,
+    job: CollectJob,
+    *,
+    inserted_rows: int | None = None,
+    updated_rows: int | None = None,
+) -> None:
+    """Finalize job counters and status.
+
+    Itemized jobs (e.g. kline backfill): aggregate from CollectJobItem rows.
+    Bulk jobs with no items (e.g. sync_industry): treat as a single successful
+    unit and accept optional row counts so totals are not left at zero.
+    """
     items = session.scalars(select(CollectJobItem).where(CollectJobItem.job_id == job.id)).all()
+
+    if not items:
+        job.total_items = 1
+        job.success_items = 1
+        job.failed_items = 0
+        job.skipped_items = 0
+        job.exhausted_items = 0
+        job.compensated_items = 0
+        if inserted_rows is not None:
+            job.inserted_rows = inserted_rows
+        if updated_rows is not None:
+            job.updated_rows = updated_rows
+        job.status = "success"
+        job.finished_at = datetime.now(timezone.utc)
+        session.flush()
+        return
+
     job.total_items = len(items)
     job.success_items = sum(1 for i in items if i.status == "success")
     job.failed_items = sum(1 for i in items if i.status == "failed")
     job.skipped_items = sum(1 for i in items if i.status == "skipped")
     job.exhausted_items = sum(1 for i in items if i.status == "exhausted")
     job.compensated_items = sum(1 for i in items if i.status == "compensated")
-    job.inserted_rows = sum(i.inserted_rows for i in items)
-    job.updated_rows = sum(i.updated_rows for i in items)
+    job.inserted_rows = sum(i.inserted_rows for i in items) if inserted_rows is None else inserted_rows
+    job.updated_rows = sum(i.updated_rows for i in items) if updated_rows is None else updated_rows
 
     effective = job.total_items - job.skipped_items
     if effective == 0:

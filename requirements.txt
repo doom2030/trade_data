@@ -15,3 +15,5 @@ jinja2
 python-multipart
 itsdangerous
 ruff
+akshare==1.18.64
+pypinyin==0.55.0

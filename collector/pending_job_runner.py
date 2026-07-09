@@ -9,7 +9,7 @@ from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.models import CollectJob, CollectJobItem
 from collector.baostock_client import BaostockClient
-from collector.collect_lock import acquire_collect_lock
+from collector.collect_lock import acquire_collect_lock, format_lock_contention_message
 from collector.job_helper import finalize_job, mark_stale_running_jobs
 from collector.kline_sync import collect_kline_item, run_catchup_job
 from collector.retry_service import apply_retry_outcome, max_attempts_for_item
@@ -111,10 +111,15 @@ def run_pending_jobs(session: Session, client: BaostockClient, limit: int) -> in
     for job_id in job_ids:
         with acquire_collect_lock(session) as acquired:
             if not acquired:
-                logger.warning("Could not acquire lock, releasing job %s back to pending", job_id)
+                logger.warning(
+                    "Could not acquire lock for job %s; %s",
+                    job_id,
+                    format_lock_contention_message(session),
+                )
                 release_job_to_pending(session, job_id)
                 continue
             try:
+                logger.info("Executing pending job %s", job_id)
                 _execute_claimed_job(session, client, job_id)
                 executed += 1
             except Exception:

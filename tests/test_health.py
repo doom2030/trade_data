@@ -28,24 +28,24 @@ class TestMigrationStatus:
     def test_ok_when_current_matches_head(self):
         class FakeSession:
             def scalar(self, _query, params=None):
-                return "002"
+                return "003"
 
-        with patch("app.api.routes_health.expected_migration_head", return_value="002"):
+        with patch("app.api.routes_health.expected_migration_head", return_value="003"):
             status, current, expected = _migration_status(FakeSession())
         assert status == "ok"
-        assert current == "002"
-        assert expected == "002"
+        assert current == "003"
+        assert expected == "003"
 
     def test_behind_when_current_is_older(self):
         class FakeSession:
             def scalar(self, _query, params=None):
                 return "001"
 
-        with patch("app.api.routes_health.expected_migration_head", return_value="002"):
+        with patch("app.api.routes_health.expected_migration_head", return_value="003"):
             status, current, expected = _migration_status(FakeSession())
         assert status == "behind"
         assert current == "001"
-        assert expected == "002"
+        assert expected == "003"
 
     def test_expected_head_matches_repository(self):
-        assert expected_migration_head() == "002"
+        assert expected_migration_head() == "003"

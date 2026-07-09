@@ -1,4 +1,4 @@
-from app.models import CollectJob
+from app.models import CollectJob, CollectJobItem
 from collector.job_helper import finalize_job
 
 
@@ -10,6 +10,25 @@ class _EmptyScalars:
 class _NoItemSession:
     def scalars(self, _query):
         return _EmptyScalars()
+
+    def flush(self):
+        pass
+
+
+class _ItemScalars:
+    def __init__(self, items):
+        self._items = items
+
+    def all(self):
+        return self._items
+
+
+class _ItemSession:
+    def __init__(self, items):
+        self._items = items
+
+    def scalars(self, _query):
+        return _ItemScalars(self._items)
 
     def flush(self):
         pass
@@ -37,10 +56,30 @@ class TestFinalizeJobLogic:
         effective = total_items - skipped_items
         assert effective == 0
 
-    def test_no_item_job_finalize_does_not_preserve_manual_rows(self):
-        job = CollectJob(job_type="sync_trade_calendar", status="running", inserted_rows=2381)
+    def test_bulk_job_without_items_sets_unit_counters(self):
+        job = CollectJob(job_type="sync_industry", status="running")
 
-        finalize_job(_NoItemSession(), job)
+        finalize_job(_NoItemSession(), job, inserted_rows=4533)
 
         assert job.status == "success"
-        assert job.inserted_rows == 0
+        assert job.total_items == 1
+        assert job.success_items == 1
+        assert job.failed_items == 0
+        assert job.inserted_rows == 4533
+        assert not (job.params or {}).get("all_skipped")
+
+    def test_itemized_job_aggregates_from_items(self):
+        job = CollectJob(id=1, job_type="backfill_kline", status="running")
+        items = [
+            CollectJobItem(job_id=1, status="success", inserted_rows=10, updated_rows=1),
+            CollectJobItem(job_id=1, status="failed", inserted_rows=0, updated_rows=0),
+        ]
+
+        finalize_job(_ItemSession(items), job)
+
+        assert job.total_items == 2
+        assert job.success_items == 1
+        assert job.failed_items == 1
+        assert job.inserted_rows == 10
+        assert job.updated_rows == 1
+        assert job.status == "failed"

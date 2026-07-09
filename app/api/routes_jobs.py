@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -22,10 +24,14 @@ MAX_JOB_ITEMS_LIMIT = 500
 def list_jobs(
     status: str | None = None,
     job_type: str | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
     limit: int = Query(50, ge=1, le=MAX_JOBS_LIMIT),
     db: Session = Depends(get_db),
 ):
-    return JobQueryService(db).list_jobs(status, job_type, limit)
+    return JobQueryService(db).list_jobs(
+        status, job_type, limit, date_from=date_from, date_to=date_to
+    )
 
 
 @router.get("/jobs/{job_id}", response_model=JobOut)

@@ -13,7 +13,10 @@ def list_symbols(
     board: str | None = None,
     status: str | None = None,
     keyword: str | None = None,
+    industry: str | None = None,
     include_excluded: bool = Query(False),
     db: Session = Depends(get_db),
 ):
-    return SymbolQueryService(db).query_symbols(board, status, keyword, include_excluded)
+    return SymbolQueryService(db).query_symbols(
+        board, status, keyword, include_excluded, industry
+    )

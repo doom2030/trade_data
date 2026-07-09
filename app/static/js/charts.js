@@ -19,13 +19,29 @@ const els = {
   jobStatus: document.getElementById('jobStatus'),
 };
 
-const chartTheme = {
-  layout: { background: { color: 'transparent' }, textColor: '#94a3b8' },
-  grid: { vertLines: { color: 'rgba(148,163,184,0.06)' }, horzLines: { color: 'rgba(148,163,184,0.06)' } },
-  crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-  timeScale: { borderColor: 'rgba(148,163,184,0.12)' },
-  rightPriceScale: { borderColor: 'rgba(148,163,184,0.12)' },
-};
+function cssVar(name, fallback) {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return value || fallback;
+}
+
+function buildChartTheme() {
+  return {
+    layout: { background: { color: 'transparent' }, textColor: cssVar('--chart-text', '#94a3b8') },
+    grid: {
+      vertLines: { color: cssVar('--chart-grid', 'rgba(148,163,184,0.06)') },
+      horzLines: { color: cssVar('--chart-grid', 'rgba(148,163,184,0.06)') },
+    },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    timeScale: { borderColor: cssVar('--chart-border', 'rgba(148,163,184,0.12)') },
+    rightPriceScale: { borderColor: cssVar('--chart-border', 'rgba(148,163,184,0.12)') },
+  };
+}
+
+function applyChartTheme() {
+  const theme = buildChartTheme();
+  priceChart?.applyOptions(theme);
+  volumeChart?.applyOptions(theme);
+}
 
 function setStatus(msg, type = '') {
   els.chartStatus.textContent = msg;
@@ -36,18 +52,20 @@ function updateStockInfo() {
   const opt = els.symbolSelect.selectedOptions[0];
   if (!opt) return;
   const status = opt.dataset.status;
-  const board = opt.dataset.board;
+  const statusLabel = opt.dataset.statusLabel || status;
+  const boardLabel = opt.dataset.boardLabel || opt.dataset.board;
   const industry = opt.dataset.industry;
   els.stockInfo.innerHTML = `
     <div><span class="label">代码</span><span class="value">${opt.value}</span></div>
-    <div><span class="label">板块</span><span class="value">${board}</span></div>
-    <div><span class="label">状态</span><span class="value">${status}</span></div>
-    ${industry ? `<div><span class="label">行业</span><span class="value">${industry}</span></div>` : ''}
+    <div><span class="label">板块</span><span class="value">${boardLabel}</span></div>
+    <div><span class="label">状态</span><span class="value">${statusLabel}</span></div>
+    <div><span class="label">行业</span><span class="value">${industry || '-'}</span></div>
   `;
   els.backfillBtn.style.display = status === 'active' ? 'inline-flex' : 'none';
 }
 
 function initCharts() {
+  const chartTheme = buildChartTheme();
   priceChart = LightweightCharts.createChart(els.priceChart, { ...chartTheme, height: 420 });
   candleSeries = priceChart.addCandlestickSeries({
     upColor: '#34d399', downColor: '#f87171',
@@ -137,13 +155,45 @@ async function backfill() {
   }
 }
 
+function toISODate(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function defaultRangeForFrequency(freq) {
+  const end = new Date();
+  const start = new Date(end);
+  if (freq === 'week') start.setDate(start.getDate() - 180);
+  else if (freq === 'month') start.setDate(start.getDate() - 730);
+  else start.setDate(start.getDate() - 30);
+  return { start: toISODate(start), end: toISODate(end) };
+}
+
+function openDatePicker(input) {
+  if (!input) return;
+  if (typeof input.showPicker === 'function') {
+    try { input.showPicker(); } catch (_) { /* ignore unsupported */ }
+  }
+}
+
 els.loadBtn?.addEventListener('click', loadKlines);
 els.backfillBtn?.addEventListener('click', backfill);
 els.symbolSelect?.addEventListener('change', updateStockInfo);
+els.frequency?.addEventListener('change', () => {
+  const range = defaultRangeForFrequency(els.frequency.value);
+  els.startDate.value = range.start;
+  els.endDate.value = range.end;
+});
+els.startDate?.addEventListener('click', () => openDatePicker(els.startDate));
+els.endDate?.addEventListener('click', () => openDatePicker(els.endDate));
 els.includeExcluded?.addEventListener('change', () => {
   const checked = els.includeExcluded.checked;
   window.location.href = `/charts?include_excluded=${checked}`;
 });
+
+window.addEventListener('themechange', applyChartTheme);
 
 if (typeof LightweightCharts !== 'undefined') {
   initCharts();

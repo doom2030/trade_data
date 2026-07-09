@@ -1,8 +1,14 @@
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import CollectJob, CollectJobItem
 from app.schemas.job import JobItemOut, JobOut
+
+# Align date filters with UI display timezone (Asia/Shanghai).
+_FILTER_TZ = ZoneInfo("Asia/Shanghai")
 
 
 class JobQueryService:
@@ -17,6 +23,8 @@ class JobQueryService:
         status: str | None = None,
         job_type: str | None = None,
         limit: int = 50,
+        date_from: date | None = None,
+        date_to: date | None = None,
     ) -> list[JobOut]:
         limit = min(max(limit, 1), self.MAX_JOBS_LIMIT)
         query = select(CollectJob).order_by(CollectJob.created_at.desc()).limit(limit)
@@ -24,6 +32,16 @@ class JobQueryService:
             query = query.where(CollectJob.status == status)
         if job_type:
             query = query.where(CollectJob.job_type == job_type)
+        if date_from:
+            start = datetime(
+                date_from.year, date_from.month, date_from.day, tzinfo=_FILTER_TZ
+            )
+            query = query.where(CollectJob.created_at >= start)
+        if date_to:
+            end = datetime(
+                date_to.year, date_to.month, date_to.day, tzinfo=_FILTER_TZ
+            ) + timedelta(days=1)
+            query = query.where(CollectJob.created_at < end)
         jobs = self.db.scalars(query).all()
         return [JobOut.model_validate(j) for j in jobs]
 

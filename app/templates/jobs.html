@@ -25,11 +25,22 @@
     <select class="form-select" name="job_type">
       <option value="">全部</option>
       {% for jt in job_types %}
-      <option value="{{ jt }}" {% if filter_job_type == jt %}selected{% endif %}>{{ jt }}</option>
+      <option value="{{ jt }}" {% if filter_job_type == jt %}selected{% endif %}>{{ job_type_label(jt) }}</option>
       {% endfor %}
     </select>
   </div>
+  <div class="form-group">
+    <label class="form-label">开始日期</label>
+    <input class="form-input" type="date" name="date_from" value="{{ filter_date_from or '' }}">
+  </div>
+  <div class="form-group">
+    <label class="form-label">结束日期</label>
+    <input class="form-input" type="date" name="date_to" value="{{ filter_date_to or '' }}">
+  </div>
   <button type="submit" class="btn btn-primary">筛选</button>
+  {% if filter_status or filter_job_type or filter_date_from or filter_date_to %}
+  <a class="btn btn-secondary" href="/jobs">重置</a>
+  {% endif %}
 </form>
 
 <div class="glass-panel">
@@ -52,7 +63,10 @@
         {% for job in jobs %}
         <tr>
           <td class="mono">#{{ job.id }}</td>
-          <td>{{ job.job_type }}</td>
+          <td>
+            <div>{{ job_type_label(job.job_type) }}</div>
+            <div class="mono job-type-code">{{ job.job_type }}</div>
+          </td>
           <td>
             {% if job.status == 'success' %}<span class="badge badge-success">{{ status_label(job.status) }}</span>
             {% elif job.status == 'failed' %}<span class="badge badge-failed">{{ status_label(job.status) }}</span>
@@ -60,10 +74,10 @@
             {% elif job.status == 'running' %}<span class="badge badge-running">{{ status_label(job.status) }}</span>
             {% else %}<span class="badge badge-partial">{{ status_label(job.status) }}</span>{% endif %}
           </td>
-          <td>{{ job.frequency or '-' }}</td>
+          <td>{{ frequency_label(job.frequency) if job.frequency else '-' }}</td>
           <td class="mono">{{ job.success_items }}/{{ job.failed_items }}/{{ job.skipped_items }}</td>
           <td class="mono">{{ job.inserted_rows + job.updated_rows }}</td>
-          <td>{{ job.created_at.strftime('%m-%d %H:%M') if job.created_at else '-' }}</td>
+          <td class="mono">{{ job.created_at | format_datetime }}</td>
           <td><a href="/jobs/{{ job.id }}">详情</a></td>
         </tr>
         {% endfor %}

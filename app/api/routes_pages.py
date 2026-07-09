@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.database import get_db
-from app.core.templates import templates
+from app.core.templates import JOB_TYPE_LABELS, templates
 from app.models import CollectJob, CollectJobItem
 from app.schemas.kline import BackfillRequest
 from app.services.dashboard_service import DashboardService
@@ -19,12 +19,7 @@ from app.services.symbol_query_service import SymbolQueryService
 router = APIRouter(tags=["pages"])
 settings = get_settings()
 
-JOB_TYPES = [
-    "sync_stock_meta", "sync_industry", "sync_trade_calendar", "backfill_kline",
-    "daily_update", "catchup_daily_update", "update_weekly", "update_monthly",
-    "retry_failed_jobs", "manual_retry_failed_job", "manual_retry_failed_item",
-    "manual_backfill_range", "quality_check",
-]
+JOB_TYPES = list(JOB_TYPE_LABELS.keys())
 
 
 def _ctx(request: Request, active_page: str, **extra):
@@ -57,7 +52,8 @@ def charts_page(
 ):
     symbols = SymbolQueryService(db).query_symbols(include_excluded=include_excluded)
     today = date.today()
-    default_start = (today - timedelta(days=90)).isoformat()
+    # Day-line default window: last 30 calendar days.
+    default_start = (today - timedelta(days=30)).isoformat()
     default_end = today.isoformat()
     default_symbol = symbol or (symbols[0].symbol if symbols else "")
 
@@ -86,9 +82,13 @@ def symbols_page(
     board: str | None = None,
     status: str | None = None,
     keyword: str | None = None,
+    industry: str | None = None,
     include_excluded: bool = Query(False),
 ):
-    symbols = SymbolQueryService(db).query_symbols(board, status, keyword, include_excluded)
+    svc = SymbolQueryService(db)
+    symbols = svc.query_symbols(board, status, keyword, include_excluded, industry)
+    board_counts = svc.count_by_board(status, keyword, include_excluded, industry=None)
+    industries = svc.list_industries(board, status, include_excluded)
     return templates.TemplateResponse(
         request,
         "symbols.html",
@@ -96,18 +96,26 @@ def symbols_page(
             request,
             "symbols",
             symbols=symbols,
-            board=board,
+            board=board or "",
             status=status,
             keyword=keyword,
+            industry=industry or "",
             include_excluded=include_excluded,
+            board_tabs=svc.board_tabs(),
+            board_counts=board_counts,
+            industries=industries,
         ),
     )
 
 
 @router.get("/industries")
 def industries_page(request: Request, db: Session = Depends(get_db)):
-    industries = IndustryQueryService(db).list_industries()
-    return templates.TemplateResponse(request, "industries.html", _ctx(request, "industries", industries=industries))
+    groups = IndustryQueryService(db).list_industries_grouped()
+    return templates.TemplateResponse(
+        request,
+        "industries.html",
+        _ctx(request, "industries", industry_groups=groups),
+    )
 
 
 @router.get("/industries/{industry_name:path}")
@@ -127,9 +135,13 @@ def jobs_page(
     db: Session = Depends(get_db),
     status: str | None = None,
     job_type: str | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
     message: str | None = None,
 ):
-    jobs = JobQueryService(db).list_jobs(status, job_type, limit=100)
+    jobs = JobQueryService(db).list_jobs(
+        status, job_type, limit=100, date_from=date_from, date_to=date_to
+    )
     return templates.TemplateResponse(
         request,
         "jobs.html",
@@ -139,6 +151,8 @@ def jobs_page(
             jobs=jobs,
             filter_status=status,
             filter_job_type=job_type,
+            filter_date_from=date_from.isoformat() if date_from else "",
+            filter_date_to=date_to.isoformat() if date_to else "",
             job_types=JOB_TYPES,
             message=message,
         ),

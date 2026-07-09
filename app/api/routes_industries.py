@@ -1,16 +1,22 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.schemas.symbol import IndustryOut, IndustrySymbolOut
+from app.schemas.symbol import IndustryGroupedOut, IndustryOut, IndustrySymbolOut
 from app.services.industry_query_service import IndustryQueryService
 
 router = APIRouter(prefix="/api/industries", tags=["industries"])
 
 
-@router.get("", response_model=list[IndustryOut])
-def list_industries(db: Session = Depends(get_db)):
-    return IndustryQueryService(db).list_industries()
+@router.get("", response_model=list[IndustryOut] | IndustryGroupedOut)
+def list_industries(
+    grouped: bool = Query(False),
+    db: Session = Depends(get_db),
+):
+    service = IndustryQueryService(db)
+    if grouped:
+        return IndustryGroupedOut(groups=service.list_industries_grouped())
+    return service.list_industries()
 
 
 @router.get("/{industry_name}/symbols", response_model=list[IndustrySymbolOut])

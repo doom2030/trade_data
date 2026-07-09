@@ -6,10 +6,12 @@ from app.core.database import Base
 from app.models import (  # noqa: F401
     CollectJob,
     CollectJobItem,
+    IndustryBoard,
     KlineDay,
     KlineMonth,
     KlineWeek,
     QualityCheckResult,
+    StockIndustryBoard,
     StockIndustryCurrent,
     StockMaster,
     StockStatusHistory,

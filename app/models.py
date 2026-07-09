@@ -84,6 +84,45 @@ class StockIndustryCurrent(Base):
     )
 
 
+class IndustryBoard(Base):
+    __tablename__ = "industry_board"
+
+    board_code: Mapped[str] = mapped_column(Text, primary_key=True)
+    board_name: Mapped[str] = mapped_column(Text, nullable=False)
+    pinyin_initial: Mapped[str] = mapped_column(Text, nullable=False)
+    source: Mapped[str] = mapped_column(Text, nullable=False, default="ths")
+    snapshot_date: Mapped[date] = mapped_column(Date, nullable=False)
+    raw_payload: Mapped[dict | None] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        Index("idx_industry_board_name", "board_name"),
+        Index("idx_industry_board_pinyin", "pinyin_initial"),
+    )
+
+
+class StockIndustryBoard(Base):
+    __tablename__ = "stock_industry_board"
+
+    symbol: Mapped[str] = mapped_column(Text, ForeignKey("stock_master.symbol"), primary_key=True)
+    board_code: Mapped[str] = mapped_column(Text, ForeignKey("industry_board.board_code"), nullable=False)
+    board_name: Mapped[str] = mapped_column(Text, nullable=False)
+    source: Mapped[str] = mapped_column(Text, nullable=False, default="ths")
+    snapshot_date: Mapped[date] = mapped_column(Date, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        Index("idx_stock_industry_board_code", "board_code"),
+        Index("idx_stock_industry_board_name", "board_name"),
+    )
+
+
 class TradeCalendar(Base):
     __tablename__ = "trade_calendar"
 

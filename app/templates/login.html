@@ -1,12 +1,29 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>登录 · Trade Data</title>
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('trade_data_theme');
+        if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {}
+    })();
+  </script>
   <link rel="stylesheet" href="/static/css/app.css">
 </head>
 <body>
+  <button type="button" class="theme-toggle theme-toggle-float" data-theme-toggle>
+    <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+    </svg>
+    <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <path d="M21 14.5A8.5 8.5 0 0110.5 3 7 7 0 1019 15.5c.7-.3 1.4-.6 2-1z"/>
+    </svg>
+    <span data-theme-label>亮色模式</span>
+  </button>
   <div class="login-page">
     <section class="login-hero">
       <div class="login-hero-content">
@@ -65,5 +82,6 @@
       </div>
     </section>
   </div>
+  <script src="/static/js/app.js"></script>
 </body>
 </html>

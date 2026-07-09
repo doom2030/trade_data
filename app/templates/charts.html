@@ -14,7 +14,15 @@
     <label class="form-label">股票</label>
     <select class="form-select" id="symbolSelect">
       {% for s in symbols %}
-      <option value="{{ s.symbol }}" data-status="{{ s.status }}" data-board="{{ s.board }}" data-industry="{{ s.current_industry or '' }}" {% if s.symbol == default_symbol %}selected{% endif %}>
+      <option
+        value="{{ s.symbol }}"
+        data-status="{{ s.status }}"
+        data-status-label="{{ status_label(s.status) }}"
+        data-board="{{ s.board }}"
+        data-board-label="{{ board_label(s.board) }}"
+        data-industry="{{ s.current_industry or '' }}"
+        {% if s.symbol == default_symbol %}selected{% endif %}
+      >
         {{ s.symbol }} {{ s.name }}
       </option>
       {% endfor %}

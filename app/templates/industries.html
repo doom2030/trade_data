@@ -3,33 +3,31 @@
 {% block content %}
 <div class="page-header">
   <h2>行业分类</h2>
-  <p>baostock 当前行业快照 · 非历史行业</p>
+  <p>同花顺行业板块 · 拼音索引（失败时自动降级申万二级）</p>
 </div>
 
-<div class="glass-panel">
-  {% if industries %}
-  <div class="data-table-wrap">
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>行业名称</th>
-          <th>股票数量</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for ind in industries %}
-        <tr>
-          <td>{{ ind.industry_name }}</td>
-          <td class="mono">{{ ind.symbol_count }}</td>
-          <td><a href="/industries/{{ ind.industry_name | quote_path }}">查看成分股</a></td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% else %}
-  <div class="empty-state"><p>暂无行业数据，请先运行行业同步</p></div>
+<div class="glass-panel industry-index-panel">
+  {% set ns = namespace(has_any=false) %}
+  {% for bucket, industries in industry_groups.items() %}
+    {% if industries %}
+      {% set ns.has_any = true %}
+      <div class="industry-index-row">
+        <div class="industry-index-label">{{ bucket }}</div>
+        <div class="industry-index-chips">
+          {% for ind in industries %}
+          <a class="industry-chip" href="/industries/{{ ind.industry_name | quote_path }}">
+            <span class="industry-chip-name">{{ ind.industry_name }}</span>
+            {% if ind.symbol_count %}
+            <span class="industry-chip-count">{{ ind.symbol_count }}</span>
+            {% endif %}
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+  {% endfor %}
+  {% if not ns.has_any %}
+  <div class="empty-state"><p>暂无行业板块数据，请先运行 <code>scripts/sync_industry_boards.py</code></p></div>
   {% endif %}
 </div>
 {% endblock %}

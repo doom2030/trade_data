@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-header">
   <h2>任务 #{{ job.id }}</h2>
-  <p>{{ job.job_type }} · {{ status_label(job.status) }}</p>
+  <p>{{ job_type_label(job.job_type) }} · {{ status_label(job.status) }}</p>
 </div>
 
 <div class="quick-actions">
@@ -21,7 +21,11 @@
 
 <div class="glass-panel detail-grid">
   <div class="detail-item"><div class="label">状态</div><div class="value">{{ status_label(job.status) }}</div></div>
-  <div class="detail-item"><div class="label">类型</div><div class="value">{{ job.job_type }}</div></div>
+  <div class="detail-item">
+    <div class="label">类型</div>
+    <div class="value">{{ job_type_label(job.job_type) }}</div>
+    <div class="mono job-type-code" style="margin-top:4px">{{ job.job_type }}</div>
+  </div>
   <div class="detail-item"><div class="label">总数</div><div class="value">{{ job.total_items }}</div></div>
   <div class="detail-item"><div class="label">成功</div><div class="value" style="color:var(--green)">{{ job.success_items }}</div></div>
   <div class="detail-item"><div class="label">失败</div><div class="value" style="color:var(--red)">{{ job.failed_items }}</div></div>

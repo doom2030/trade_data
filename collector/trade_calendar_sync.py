@@ -57,8 +57,7 @@ def sync_trade_calendar(
             logger.info("baostock trade calendar unavailable, inferring from benchmark symbols")
             upserted = _infer_calendar(session, client, start_date, end_date)
 
-        finalize_job(session, job)
-        job.inserted_rows = upserted
+        finalize_job(session, job, inserted_rows=upserted)
         session.commit()
         return upserted
     except Exception as e:
