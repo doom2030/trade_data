@@ -5,7 +5,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.models import TradeCalendar
+from app.models import CollectJob, TradeCalendar
 from collector.baostock_client import BaostockClient, BaostockError
 from collector.job_helper import create_job, finalize_job
 
@@ -39,8 +39,9 @@ def sync_trade_calendar(
     client: BaostockClient,
     start_date: date,
     end_date: date,
+    job: CollectJob | None = None,
 ) -> int:
-    job = create_job(
+    job = job or create_job(
         session,
         "sync_trade_calendar",
         start_date=start_date,

@@ -301,9 +301,6 @@ pending 任务由常驻 `pending-worker` 消费；采集脚本通过 cron 触发
 # 交易日盘后：日更（含失败补偿、缺失日 catchup）
 0 20 * * 1-5 cd /path/to/trade_data && docker compose --env-file .env run --rm collector python scripts/daily_update.py
 
-# 同步近期交易日历
-10 18 * * 1-5 cd /path/to/trade_data && docker compose --env-file .env run --rm collector python scripts/sync_trade_calendar.py
-
 # 周线 / 月线
 0 20 * * 5 cd /path/to/trade_data && docker compose --env-file .env run --rm collector python scripts/update_weekly_monthly.py --frequency week
 30 20 28-31 * * cd /path/to/trade_data && docker compose --env-file .env run --rm collector python scripts/update_weekly_monthly.py --frequency month
@@ -349,7 +346,7 @@ docker compose --env-file .env cp postgres:/tmp/trade_data.dump ./backups/trade_
 | `scripts/sync_stock_meta.py` | 同步股票池 |
 | `scripts/sync_industry_boards.py` | 同步行业板块（`--source auto|ths|sw`） |
 | `scripts/sync_industry.py` | 同步 baostock 证监会行业（对照） |
-| `scripts/sync_trade_calendar.py` | 同步交易日历 |
+| `scripts/sync_trade_calendar.py` | 一次性同步交易日历（默认从历史起始日到下一年年底，失败后可重跑） |
 | `scripts/backfill_kline.py` | 历史 K 线回填 |
 | `scripts/daily_update.py` | 日线增量（含 catchup、元数据同步） |
 | `scripts/update_weekly_monthly.py` | 周 / 月线更新 |
@@ -358,7 +355,9 @@ docker compose --env-file .env cp postgres:/tmp/trade_data.dump ./backups/trade_
 
 `backfill_kline.py` 的 `--frequency` 支持 `day` / `week` / `month` / `all`；`--adjust` 支持 `none` / `forward` / `backward` / `all`。
 
-默认 `--skip-existing`：按库内已有 K 线与交易日历比对，**只向 baostock 请求缺口区间**（已齐的明细会标记为 skipped）。若需整段重拉，加 `--no-skip-existing`。
+历史回填固定按库内已有 K 线与交易日历比对，**只向 baostock 请求缺口区间**（已齐的明细会标记为 skipped）。
+
+`sync_trade_calendar.py` 是基础数据初始化脚本，通常首次部署或每年维护时执行一次即可；脚本使用 upsert 写入，失败后可直接重跑。
 
 ## API 说明
 

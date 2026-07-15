@@ -5,7 +5,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from app.models import IndustryBoard, StockIndustryBoard, StockMaster
+from app.models import CollectJob, IndustryBoard, StockIndustryBoard, StockMaster
 from collector.industry_board_clients import (
     IndustryBoardFetchError,
     fetch_sw_boards,
@@ -30,13 +30,14 @@ def sync_industry_boards(
     *,
     sleep_seconds: float = DEFAULT_REQUEST_SLEEP_SECONDS,
     source: str = "auto",
+    job: CollectJob | None = None,
 ) -> tuple[int, int, str]:
     """Sync industry boards and memberships.
 
     source: auto | ths | sw
     Returns (board_count, member_count, used_source).
     """
-    job = create_job(
+    job = job or create_job(
         session,
         "sync_industry_boards",
         params={"snapshot_date": str(snapshot_date), "requested_source": source},

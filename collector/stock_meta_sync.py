@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from app.models import StockMaster, StockStatusHistory
+from app.models import CollectJob, StockMaster, StockStatusHistory
 from collector.baostock_client import BaostockClient
 from collector.board_classifier import classify_board, is_st_name, parse_symbol
 from collector.job_helper import create_job, finalize_job
@@ -17,8 +17,13 @@ def _is_delisted(out_date: date | None, snapshot_date: date) -> bool:
     return bool(out_date and out_date <= snapshot_date)
 
 
-def sync_stock_meta(session: Session, client: BaostockClient, snapshot_date: date) -> int:
-    job = create_job(session, "sync_stock_meta", params={"snapshot_date": str(snapshot_date)})
+def sync_stock_meta(
+    session: Session,
+    client: BaostockClient,
+    snapshot_date: date,
+    job: CollectJob | None = None,
+) -> int:
+    job = job or create_job(session, "sync_stock_meta", params={"snapshot_date": str(snapshot_date)})
     session.commit()
 
     try:

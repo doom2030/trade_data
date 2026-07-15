@@ -427,21 +427,23 @@ def daily_update_klines(
     client: BaostockClient,
     trade_date: date,
     job_type: str = "daily_update",
+    job: CollectJob | None = None,
 ) -> CollectJob:
     if not is_trading_day(session, trade_date):
-        job = create_job(
+        job = job or create_job(
             session,
             job_type,
             frequency="day",
             target_trade_date=trade_date,
             params={"skip_reason": "non_trading_day"},
         )
+        job.params = {**(job.params or {}), "skip_reason": "non_trading_day"}
         session.commit()
         finalize_job(session, job)
         session.commit()
         return job
 
-    job = create_job(
+    job = job or create_job(
         session,
         job_type,
         frequency="day",
@@ -461,9 +463,10 @@ def update_weekly_monthly(
     frequency: str,
     end_date: date,
     periods: int = 2,
+    job: CollectJob | None = None,
 ) -> CollectJob:
     job_type = "update_weekly" if frequency == "week" else "update_monthly"
-    job = create_job(
+    job = job or create_job(
         session,
         job_type,
         frequency=frequency,

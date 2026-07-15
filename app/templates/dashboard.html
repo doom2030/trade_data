@@ -22,7 +22,7 @@
     <div class="stat-value gold">{{ stats.excluded_stocks | default(0) }}</div>
   </div>
   <div class="stat-card glass-panel">
-    <div class="stat-label">日 K 记录数</div>
+    <div class="stat-label">日 K 记录数{% if stats.kline_rows_estimated %}（估算）{% endif %}</div>
     <div class="stat-value cyan">{{ "{:,}".format(stats.kline_rows | default(0)) }}</div>
   </div>
   <div class="stat-card glass-panel">

@@ -69,7 +69,13 @@ def is_original_failed_item_clause():
     )
 
 
-def retry_failed_items(session: Session, client: BaostockClient, max_attempts: int, limit: int) -> int:
+def retry_failed_items(
+    session: Session,
+    client: BaostockClient,
+    max_attempts: int,
+    limit: int,
+    job: CollectJob | None = None,
+) -> int:
     failed_items = session.scalars(
         select(CollectJobItem)
         .where(
@@ -82,9 +88,12 @@ def retry_failed_items(session: Session, client: BaostockClient, max_attempts: i
     ).all()
 
     if not failed_items:
+        if job:
+            finalize_job(session, job, inserted_rows=0, updated_rows=0)
+            session.commit()
         return 0
 
-    job = create_job(session, "retry_failed_jobs")
+    job = job or create_job(session, "retry_failed_jobs")
     session.commit()
 
     retried = 0

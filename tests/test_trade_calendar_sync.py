@@ -1,7 +1,22 @@
 from datetime import date, timedelta
 
+import pytest
+
 from app.models import TradeCalendar
 from collector.trade_calendar_sync import ensure_trade_calendar_for_date, sync_trade_calendar
+from scripts.sync_trade_calendar import default_calendar_range, resolve_calendar_range
+
+
+class TestSyncTradeCalendarScript:
+    def test_default_range_extends_to_next_year_end(self):
+        start, end = default_calendar_range(today=date(2026, 7, 15))
+
+        assert start == date(2020, 1, 1)
+        assert end == date(2027, 12, 31)
+
+    def test_resolve_range_rejects_reversed_dates(self):
+        with pytest.raises(Exception, match="end-date must be >= start-date"):
+            resolve_calendar_range("2026-07-15", "2026-07-01")
 
 
 class TestEnsureTradeCalendarForDate:

@@ -159,6 +159,75 @@ def jobs_page(
     )
 
 
+@router.get("/jobs/run")
+def job_runner_page(
+    request: Request,
+    message: str | None = None,
+):
+    today = date.today().isoformat()
+    return templates.TemplateResponse(
+        request,
+        "job_run.html",
+        _ctx(
+            request,
+            "jobs",
+            today=today,
+            message=message,
+            max_natural_days=settings.manual_backfill_max_natural_days,
+        ),
+    )
+
+
+@router.post("/jobs/run")
+def trigger_job_form(
+    request: Request,
+    db: Session = Depends(get_db),
+    action: str = Form(...),
+    snapshot_date: date | None = Form(None),
+    start: date | None = Form(None),
+    end: date | None = Form(None),
+    trade_date: date | None = Form(None),
+    end_date: date | None = Form(None),
+    up_to: date | None = Form(None),
+    symbol: str | None = Form(None),
+    frequency: str | None = Form(None),
+    source: str = Form("auto"),
+    sleep_seconds: float = Form(0.35),
+    max_attempts: int = Form(3),
+    limit: int = Form(500),
+    job_id: int | None = Form(None),
+):
+    params = {
+        "snapshot_date": snapshot_date or date.today(),
+        "start": start,
+        "end": end,
+        "trade_date": trade_date or date.today(),
+        "end_date": end_date or date.today(),
+        "up_to": up_to or date.today(),
+        "symbol": (symbol or "").strip(),
+        "frequency": frequency,
+        "source": source,
+        "sleep_seconds": sleep_seconds,
+        "max_attempts": max_attempts,
+        "limit": limit,
+        "job_id": job_id,
+    }
+
+    try:
+        result = JobCommandService(db).trigger_job(action, params)
+    except HTTPException as e:
+        detail = e.detail if isinstance(e.detail, str) else "任务触发失败"
+        return _redirect_with_message("/jobs/run", detail)
+
+    if isinstance(result, CollectJob):
+        return _redirect_with_message(f"/jobs/{result.id}", f"任务 #{result.id} 已创建，等待后台执行")
+    if isinstance(result, list):
+        return _redirect_with_message("/jobs", f"已创建 {len(result)} 个补齐任务")
+    if isinstance(result, int) and action in {"manual_backfill_range"}:
+        return _redirect_with_message(f"/jobs/{result}", f"任务 #{result} 已创建")
+    return _redirect_with_message("/jobs", "任务已创建，等待后台执行")
+
+
 @router.get("/jobs/{job_id}")
 def job_detail_page(
     job_id: int,

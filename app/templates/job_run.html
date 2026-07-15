@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}触发任务{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2>触发任务</h2>
+  <p>手动执行采集、同步、补采与检查任务</p>
+</div>
+
+<div class="quick-actions">
+  <a href="/jobs" class="btn btn-secondary">返回任务列表</a>
+</div>
+
+{% if message %}
+<div class="alert-success glass-panel" style="padding:16px 24px;margin-bottom:20px">{{ message }}</div>
+{% endif %}
+
+<div class="stat-grid">
+  <form class="stat-card glass-panel task-card" method="post" action="/jobs/run">
+    <input type="hidden" name="action" value="sync_stock_meta">
+    <div class="stat-label">同步股票池</div>
+    <div class="form-group">
+      <label class="form-label">快照日期</label>
+      <input class="form-input" type="date" name="snapshot_date" value="{{ today }}">
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm">创建任务</button>
+  </form>
+
+  <form class="stat-card glass-panel task-card" method="post" action="/jobs/run">
+    <input type="hidden" name="action" value="sync_industry_boards">
+    <div class="stat-label">同步行业板块</div>
+    <div class="form-group">
+      <label class="form-label">快照日期</label>
+      <input class="form-input" type="date" name="snapshot_date" value="{{ today }}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">来源</label>
+      <select class="form-select" name="source">
+        <option value="auto">自动</option>
+        <option value="ths">同花顺</option>
+        <option value="sw">申万</option>
+      </select>
+    </div>
+    <input type="hidden" name="sleep_seconds" value="0.35">
+    <button type="submit" class="btn btn-primary btn-sm">创建任务</button>
+  </form>
+</div>
+
+<div class="stat-grid" style="margin-top:20px">
+  <form class="stat-card glass-panel task-card" method="post" action="/jobs/run">
+    <input type="hidden" name="action" value="daily_update">
+    <div class="stat-label">日线日常更新</div>
+    <div class="form-group">
+      <label class="form-label">交易日</label>
+      <input class="form-input" type="date" name="trade_date" value="{{ today }}">
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm">创建任务</button>
+  </form>
+
+  <form class="stat-card glass-panel task-card" method="post" action="/jobs/run" data-periodic-form>
+    <input type="hidden" name="action" value="update_weekly">
+    <div class="stat-label">周期线更新</div>
+    <div class="form-group">
+      <label class="form-label">周期</label>
+      <select class="form-select" data-action-select>
+        <option value="update_weekly">周线</option>
+        <option value="update_monthly">月线</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">结束日期</label>
+      <input class="form-input" type="date" name="end_date" value="{{ today }}">
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm">创建任务</button>
+  </form>
+
+  <form class="stat-card glass-panel task-card" method="post" action="/jobs/run">
+    <input type="hidden" name="action" value="catchup_daily_update">
+    <div class="stat-label">缺失交易日补齐</div>
+    <div class="form-group">
+      <label class="form-label">补齐至</label>
+      <input class="form-input" type="date" name="up_to" value="{{ today }}">
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm">创建任务</button>
+  </form>
+</div>
+
+<div class="glass-panel" style="margin-top:20px;padding:20px 24px">
+  <h3 style="font-size:15px;font-weight:600;margin-bottom:16px">区间补采</h3>
+  <form class="filter-bar" method="post" action="/jobs/run" style="padding:0;margin:0;border:0">
+    <input type="hidden" name="action" value="manual_backfill_range">
+    <div class="form-group">
+      <label class="form-label">股票代码</label>
+      <input class="form-input" name="symbol" placeholder="sh.600000" required>
+    </div>
+    <div class="form-group">
+      <label class="form-label">周期</label>
+      <select class="form-select" name="frequency">
+        <option value="day">日线</option>
+        <option value="week">周线</option>
+        <option value="month">月线</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">开始日期</label>
+      <input class="form-input" type="date" name="start" value="{{ today }}" required>
+    </div>
+    <div class="form-group">
+      <label class="form-label">结束日期</label>
+      <input class="form-input" type="date" name="end" value="{{ today }}" required>
+    </div>
+    <button type="submit" class="btn btn-primary">创建补采任务</button>
+  </form>
+</div>
+
+<div class="stat-grid" style="margin-top:20px">
+  <form class="stat-card glass-panel task-card" method="post" action="/jobs/run">
+    <input type="hidden" name="action" value="retry_failed_jobs">
+    <div class="stat-label">批量失败补偿</div>
+    <div class="form-group">
+      <label class="form-label">最大尝试次数</label>
+      <input class="form-input" type="number" name="max_attempts" value="3" min="1" max="20">
+    </div>
+    <div class="form-group">
+      <label class="form-label">最多明细数</label>
+      <input class="form-input" type="number" name="limit" value="500" min="1" max="5000">
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm">创建任务</button>
+  </form>
+
+  <form class="stat-card glass-panel task-card" method="post" action="/jobs/run">
+    <input type="hidden" name="action" value="quality_check">
+    <div class="stat-label">质量检查</div>
+    <div class="form-group">
+      <label class="form-label">任务 ID</label>
+      <input class="form-input" type="number" name="job_id" min="1" required>
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm">创建任务</button>
+  </form>
+</div>
+<script>
+  document.querySelectorAll('[data-periodic-form]').forEach((form) => {
+    const action = form.querySelector('input[name="action"]');
+    const select = form.querySelector('[data-action-select]');
+    if (action && select) {
+      select.addEventListener('change', () => { action.value = select.value; });
+    }
+  });
+</script>
+{% endblock %}
