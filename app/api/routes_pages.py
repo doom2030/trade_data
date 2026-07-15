@@ -138,9 +138,16 @@ def jobs_page(
     date_from: date | None = None,
     date_to: date | None = None,
     message: str | None = None,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(15, ge=1, le=JobQueryService.MAX_JOBS_LIMIT),
 ):
-    jobs = JobQueryService(db).list_jobs(
-        status, job_type, limit=100, date_from=date_from, date_to=date_to
+    query_service = JobQueryService(db)
+    job_total = query_service.count_jobs(status, job_type, date_from, date_to)
+    if job_total > 0:
+        last_page_offset = max(0, ((job_total - 1) // limit) * limit)
+        offset = min(offset, last_page_offset)
+    jobs = query_service.list_jobs(
+        status, job_type, limit=limit, offset=offset, date_from=date_from, date_to=date_to
     )
     return templates.TemplateResponse(
         request,
@@ -155,6 +162,9 @@ def jobs_page(
             filter_date_to=date_to.isoformat() if date_to else "",
             job_types=JOB_TYPES,
             message=message,
+            job_offset=offset,
+            job_limit=limit,
+            job_total=job_total,
         ),
     )
 
@@ -233,21 +243,13 @@ def job_detail_page(
     job_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    item_status: str | None = None,
     message: str | None = Query(None),
-    offset: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=JobQueryService.MAX_JOB_ITEMS_LIMIT),
 ):
     job = db.get(CollectJob, job_id)
     if not job:
         return RedirectResponse("/jobs", status_code=303)
     query_service = JobQueryService(db)
-    item_total = query_service.count_job_items(job_id, item_status)
-    offset = max(0, offset)
-    if item_total > 0:
-        last_page_offset = max(0, ((item_total - 1) // limit) * limit)
-        offset = min(offset, last_page_offset)
-    items = query_service.list_job_items(job_id, item_status, offset, limit)
+    logs = query_service.list_job_logs(job_id)
     return templates.TemplateResponse(
         request,
         "job_detail.html",
@@ -255,14 +257,34 @@ def job_detail_page(
             request,
             "jobs",
             job=job,
-            items=items,
-            item_status=item_status,
             message=message,
-            item_offset=offset,
-            item_limit=limit,
-            item_total=item_total,
+            logs=logs,
         ),
     )
+
+
+@router.post("/jobs/delete")
+def delete_jobs_form(
+    request: Request,
+    db: Session = Depends(get_db),
+    job_ids: list[int] | None = Form(None),
+):
+    try:
+        deleted = JobCommandService(db).delete_jobs(job_ids or [])
+    except HTTPException as e:
+        detail = e.detail if isinstance(e.detail, str) else "删除失败"
+        return _redirect_with_message("/jobs", detail)
+    return _redirect_with_message("/jobs", f"已删除 {deleted} 个任务")
+
+
+@router.post("/jobs/{job_id}/delete")
+def delete_job_form(job_id: int, request: Request, db: Session = Depends(get_db)):
+    try:
+        JobCommandService(db).delete_jobs([job_id])
+    except HTTPException as e:
+        detail = e.detail if isinstance(e.detail, str) else "删除失败"
+        return _redirect_with_message(f"/jobs/{job_id}", detail)
+    return _redirect_with_message("/jobs", f"任务 #{job_id} 已删除")
 
 
 @router.post("/jobs/{job_id}/retry")

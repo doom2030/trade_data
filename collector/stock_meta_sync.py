@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.models import CollectJob, StockMaster, StockStatusHistory
 from collector.baostock_client import BaostockClient
 from collector.board_classifier import classify_board, is_st_name, parse_symbol
-from collector.job_helper import create_job, finalize_job
+from collector.job_helper import append_job_log, create_job, finalize_job, set_job_progress
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,20 @@ def sync_stock_meta(
     session.commit()
 
     try:
+        logger.info("Sync stock meta job %s: querying baostock stock basic", job.id)
+        set_job_progress(session, job, "query_stock_basic", snapshot_date=snapshot_date.isoformat())
+        append_job_log(
+            session,
+            job,
+            "开始请求 baostock 股票基础信息",
+            payload={"snapshot_date": snapshot_date.isoformat()},
+        )
+        session.commit()
         rows = client.query_stock_basic(snapshot_date)
+        logger.info("Sync stock meta job %s: fetched %d rows", job.id, len(rows))
+        set_job_progress(session, job, "upserting_stock_master", fetched_rows=len(rows))
+        append_job_log(session, job, "baostock 股票基础信息请求完成", payload={"fetched_rows": len(rows)})
+        session.commit()
         upserted = 0
         for row in rows:
             parsed = parse_symbol(row.get("code", ""))
@@ -94,7 +107,9 @@ def sync_stock_meta(
             upserted += 1
 
         finalize_job(session, job, inserted_rows=upserted)
+        append_job_log(session, job, "股票池写入完成", payload={"upserted_rows": upserted})
         session.commit()
+        logger.info("Sync stock meta job %s: upserted %d rows", job.id, upserted)
         return upserted
     except Exception as e:
         job.status = "failed"

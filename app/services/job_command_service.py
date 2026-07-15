@@ -1,9 +1,9 @@
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.models import CollectJob, StockMaster
+from app.models import CollectJob, CollectJobItem, CollectJobLog, QualityCheckResult, StockMaster
 from app.schemas.job import JobRetryResponse
 from app.schemas.kline import BackfillRequest, BackfillResponse
 from collector.job_helper import create_job
@@ -67,6 +67,48 @@ class JobCommandService:
             job_type=job.job_type,
             retry_of_item_id=job.retry_of_item_id,
         )
+
+    def delete_jobs(self, job_ids: list[int]) -> int:
+        ids = sorted({int(job_id) for job_id in job_ids if int(job_id) > 0})
+        if not ids:
+            raise HTTPException(400, "No jobs selected")
+
+        running = self.db.scalars(
+            select(CollectJob.id).where(
+                CollectJob.id.in_(ids),
+                CollectJob.status == "running",
+            )
+        ).all()
+        if running:
+            raise HTTPException(400, f"Cannot delete running jobs: {', '.join(str(i) for i in running)}")
+
+        existing_ids = self.db.scalars(select(CollectJob.id).where(CollectJob.id.in_(ids))).all()
+        if not existing_ids:
+            raise HTTPException(404, "No matching jobs found")
+
+        item_ids = self.db.scalars(
+            select(CollectJobItem.id).where(CollectJobItem.job_id.in_(existing_ids))
+        ).all()
+
+        self.db.execute(
+            update(CollectJob)
+            .where(CollectJob.retry_of_job_id.in_(existing_ids))
+            .values(retry_of_job_id=None)
+        )
+        if item_ids:
+            self.db.execute(
+                update(CollectJob)
+                .where(CollectJob.retry_of_item_id.in_(item_ids))
+                .values(retry_of_item_id=None)
+            )
+            self.db.execute(delete(QualityCheckResult).where(QualityCheckResult.job_item_id.in_(item_ids)))
+
+        self.db.execute(delete(QualityCheckResult).where(QualityCheckResult.job_id.in_(existing_ids)))
+        self.db.execute(delete(CollectJobLog).where(CollectJobLog.job_id.in_(existing_ids)))
+        self.db.execute(delete(CollectJobItem).where(CollectJobItem.job_id.in_(existing_ids)))
+        self.db.execute(delete(CollectJob).where(CollectJob.id.in_(existing_ids)))
+        self.db.commit()
+        return len(existing_ids)
 
     def create_backfill(self, req: BackfillRequest) -> BackfillResponse:
         stock = self.db.get(StockMaster, req.symbol)

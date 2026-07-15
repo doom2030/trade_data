@@ -73,3 +73,11 @@ class TestListJobsDateFilter:
         result = JobQueryService(db).list_jobs(status="failed")
         assert len(result) == 1
         assert result[0].id == 2
+
+    def test_applies_offset_and_limit(self):
+        db = _FakeDb([_job(id=3)])
+        result = JobQueryService(db).list_jobs(offset=15, limit=15)
+        sql = str(db.last_query).lower()
+        assert len(result) == 1
+        assert "limit" in sql
+        assert "offset" in sql

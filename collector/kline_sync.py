@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.models import CollectJob, CollectJobItem, StockMaster, StockSuspension, TradeCalendar
 from collector.baostock_client import BaostockClient, BaostockError
-from collector.job_helper import create_job, create_job_item, finalize_job
+from collector.job_helper import append_job_log, create_job, create_job_item, finalize_job
 from collector.kline_table_router import get_kline_model, make_period_start
 
 logger = logging.getLogger(__name__)
@@ -247,6 +247,22 @@ def collect_kline_item(
         return
 
     try:
+        parent_job = session.get(CollectJob, item.job_id)
+        if parent_job:
+            append_job_log(
+                session,
+                parent_job,
+                "请求 baostock K 线",
+                payload={
+                    "item_id": item.id,
+                    "symbol": item.symbol,
+                    "frequency": item.frequency,
+                    "adjust_flag": item.adjust_flag,
+                    "start_date": start.isoformat(),
+                    "end_date": end.isoformat(),
+                },
+            )
+            session.commit()
         rows = client.query_kline(item.symbol, item.frequency, start, end, item.adjust_flag)
         st_rows = sum(1 for row in rows if row.get("is_st"))
         ins, upd = upsert_klines(session, item.frequency, rows)
@@ -258,6 +274,20 @@ def collect_kline_item(
             item.params = params
         item.status = "success"
         item.finished_at = datetime.now(timezone.utc)
+        parent_job = session.get(CollectJob, item.job_id)
+        if parent_job:
+            append_job_log(
+                session,
+                parent_job,
+                "K 线写入完成",
+                payload={
+                    "item_id": item.id,
+                    "fetched_rows": len(rows),
+                    "inserted_rows": ins,
+                    "updated_rows": upd,
+                    "st_rows": st_rows,
+                },
+            )
         session.commit()
     except BaostockError as e:
         session.rollback()
@@ -267,6 +297,15 @@ def collect_kline_item(
             failed.error_code = e.code
             failed.error_message = e.message
             failed.finished_at = datetime.now(timezone.utc)
+            parent_job = session.get(CollectJob, failed.job_id)
+            if parent_job:
+                append_job_log(
+                    session,
+                    parent_job,
+                    "baostock K 线请求失败",
+                    level="error",
+                    payload={"item_id": failed.id, "error_code": e.code, "error": e.message},
+                )
             session.commit()
     except Exception as e:
         session.rollback()
@@ -275,6 +314,15 @@ def collect_kline_item(
             failed.status = "failed"
             failed.error_message = str(e)
             failed.finished_at = datetime.now(timezone.utc)
+            parent_job = session.get(CollectJob, failed.job_id)
+            if parent_job:
+                append_job_log(
+                    session,
+                    parent_job,
+                    "K 线明细执行异常",
+                    level="error",
+                    payload={"item_id": failed.id, "error": str(e)},
+                )
             session.commit()
 
 
@@ -697,23 +745,22 @@ def get_missed_trading_days(session: Session, up_to: date) -> list[date]:
 
 
 def create_catchup_jobs(session: Session, missed_days: list[date]) -> list[int]:
-    max_days = settings.catchup_daily_max_trading_days
-    job_ids = []
-    for i in range(0, len(missed_days), max_days):
-        batch = missed_days[i : i + max_days]
-        job = create_job(
-            session,
-            "catchup_daily_update",
-            frequency="day",
-            start_date=batch[0],
-            end_date=batch[-1],
-            target_trade_date=batch[-1],
-            status="pending",
-            params={"trade_dates": [d.isoformat() for d in batch]},
-        )
-        job_ids.append(job.id)
+    if not missed_days:
+        return []
+
+    dates = sorted(set(missed_days))
+    job = create_job(
+        session,
+        "catchup_daily_update",
+        frequency="day",
+        start_date=dates[0],
+        end_date=dates[-1],
+        target_trade_date=dates[-1],
+        status="pending",
+        params={"trade_dates": [d.isoformat() for d in dates]},
+    )
     session.commit()
-    return job_ids
+    return [job.id]
 
 
 def _catchup_trade_dates(job: CollectJob) -> list[date]:

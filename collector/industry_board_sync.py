@@ -15,7 +15,7 @@ from collector.industry_board_clients import (
     sleep_quietly,
 )
 from collector.industry_board_utils import pinyin_initial
-from collector.job_helper import create_job, finalize_job
+from collector.job_helper import append_job_log, create_job, finalize_job
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +45,13 @@ def sync_industry_boards(
     session.commit()
 
     try:
+        append_job_log(
+            session,
+            job,
+            "开始同步行业板块",
+            payload={"snapshot_date": snapshot_date.isoformat(), "source": source},
+        )
+        session.commit()
         used_source, board_rows, membership = _load_boards_and_members(
             session,
             snapshot_date,
@@ -100,12 +107,24 @@ def sync_industry_boards(
             "board_count": len(board_rows),
             "member_count": len(membership),
         }
+        append_job_log(
+            session,
+            job,
+            "行业板块拉取完成，开始写入",
+            payload={"used_source": used_source, "board_count": len(board_rows), "member_count": len(membership)},
+        )
 
         finalize_job(
             session,
             job,
             inserted_rows=len(membership),
             updated_rows=len(board_rows),
+        )
+        append_job_log(
+            session,
+            job,
+            "行业板块同步完成",
+            payload={"used_source": used_source, "board_count": len(board_rows), "member_count": len(membership)},
         )
         session.commit()
         return len(board_rows), len(membership), used_source

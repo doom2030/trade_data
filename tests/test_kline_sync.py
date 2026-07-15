@@ -114,6 +114,32 @@ class TestCatchupJobParams:
         dates = _catchup_trade_dates(job)
         assert dates == [date(2026, 7, 1), date(2026, 7, 2)]
 
+    def test_create_catchup_jobs_creates_single_job_for_all_dates(self, monkeypatch):
+        from collector.kline_sync import create_catchup_jobs
+
+        created = []
+
+        class FakeSession:
+            def commit(self):
+                pass
+
+            def add(self, obj):
+                created.append(obj)
+
+            def flush(self):
+                created[-1].id = len(created)
+
+        ids = create_catchup_jobs(
+            FakeSession(),
+            [date(2026, 7, 3), date(2026, 7, 1), date(2026, 7, 2)],
+        )
+
+        assert ids == [1]
+        assert len(created) == 1
+        assert created[0].start_date == date(2026, 7, 1)
+        assert created[0].end_date == date(2026, 7, 3)
+        assert created[0].params == {"trade_dates": ["2026-07-01", "2026-07-02", "2026-07-03"]}
+
 
 class TestGetMissedTradingDays:
     def test_finds_middle_gap_after_later_success(self):

@@ -51,11 +51,19 @@
               行业分类
             </a>
           </li>
-          <li>
-            <a href="/jobs" class="nav-link {% if active_page == 'jobs' %}active{% endif %}">
+          <li class="nav-group {% if active_page == 'jobs' %}active{% endif %}">
+            <div class="nav-link nav-group-title {% if active_page == 'jobs' %}active{% endif %}">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
-              采集任务
-            </a>
+              任务
+            </div>
+            <ul class="nav-sublist">
+              <li>
+                <a href="/jobs/run" class="nav-sublink {% if request.url.path == '/jobs/run' %}active{% endif %}">创建任务</a>
+              </li>
+              <li>
+                <a href="/jobs" class="nav-sublink {% if request.url.path == '/jobs' or request.url.path.startswith('/jobs/') and request.url.path != '/jobs/run' %}active{% endif %}">任务列表</a>
+              </li>
+            </ul>
           </li>
         </ul>
       </nav>

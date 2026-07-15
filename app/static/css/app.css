@@ -120,6 +120,17 @@ a:hover { color: var(--gold); }
 .nav-link:hover { color: var(--text-primary); background: var(--bg-hover); }
 .nav-link.active { color: var(--gold); background: var(--gold-soft); border-color: var(--border-accent); }
 .nav-link.active svg { opacity: 1; }
+.nav-group-title { cursor: default; }
+.nav-sublist {
+  list-style: none; display: flex; flex-direction: column; gap: 2px;
+  margin: 4px 0 8px 32px; padding-left: 12px; border-left: 1px solid var(--border-subtle);
+}
+.nav-sublink {
+  display: block; padding: 8px 10px; border-radius: var(--radius-sm);
+  color: var(--text-muted); font-size: 13px; text-decoration: none; transition: all 0.18s ease;
+}
+.nav-sublink:hover { color: var(--text-primary); background: var(--bg-hover); }
+.nav-sublink.active { color: var(--gold); background: var(--gold-soft); }
 .sidebar-footer { padding-top: 20px; border-top: 1px solid var(--border-subtle); font-size: 12px; color: var(--text-muted); }
 .theme-toggle {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
@@ -179,6 +190,21 @@ html[data-theme="light"] .theme-toggle .icon-moon { display: none; }
 }
 .pagination-info { font-size: 13px; color: var(--text-secondary); }
 .pagination-actions { display: flex; gap: 8px; }
+.job-log-list { padding: 8px 0; max-height: 420px; overflow: auto; }
+.job-log-row {
+  display: grid; grid-template-columns: 150px 72px minmax(180px, 1fr);
+  gap: 12px; align-items: start; padding: 9px 24px;
+  border-bottom: 1px solid var(--border-subtle); color: var(--text-secondary);
+  font-size: 13px;
+}
+.job-log-row:last-child { border-bottom: none; }
+.job-log-time, .job-log-payload { color: var(--text-muted); font-size: 12px; }
+.job-log-message { color: var(--text-primary); }
+.job-log-payload { grid-column: 3; white-space: pre-wrap; word-break: break-word; }
+@media (max-width: 760px) {
+  .job-log-row { grid-template-columns: 1fr; }
+  .job-log-payload { grid-column: 1; }
+}
 .industry-index-panel { padding: 8px 0; }
 .industry-index-row {
   display: grid;
@@ -391,5 +417,7 @@ input[type="date"].form-input {
   .app-shell { flex-direction: column; }
   .sidebar { width: 100%; height: auto; position: relative; flex-direction: row; flex-wrap: wrap; padding: 16px; }
   .nav-list { flex-direction: row; flex-wrap: wrap; width: 100%; }
+  .nav-group { width: 100%; }
+  .nav-sublist { flex-direction: row; flex-wrap: wrap; margin-left: 8px; }
   .main-content { padding: 20px 16px; }
 }

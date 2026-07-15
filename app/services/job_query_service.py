@@ -4,8 +4,8 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import CollectJob, CollectJobItem
-from app.schemas.job import JobItemOut, JobOut
+from app.models import CollectJob, CollectJobItem, CollectJobLog
+from app.schemas.job import JobItemOut, JobLogOut, JobOut
 
 # Align date filters with UI display timezone (Asia/Shanghai).
 _FILTER_TZ = ZoneInfo("Asia/Shanghai")
@@ -23,11 +23,35 @@ class JobQueryService:
         status: str | None = None,
         job_type: str | None = None,
         limit: int = 50,
+        offset: int = 0,
         date_from: date | None = None,
         date_to: date | None = None,
     ) -> list[JobOut]:
         limit = min(max(limit, 1), self.MAX_JOBS_LIMIT)
-        query = select(CollectJob).order_by(CollectJob.created_at.desc()).limit(limit)
+        offset = max(offset, 0)
+        query = self._jobs_query(status, job_type, date_from, date_to)
+        query = query.order_by(CollectJob.created_at.desc()).offset(offset).limit(limit)
+        jobs = self.db.scalars(query).all()
+        return [JobOut.model_validate(j) for j in jobs]
+
+    def count_jobs(
+        self,
+        status: str | None = None,
+        job_type: str | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
+    ) -> int:
+        query = self._jobs_query(status, job_type, date_from, date_to)
+        return self.db.scalar(select(func.count()).select_from(query.subquery())) or 0
+
+    def _jobs_query(
+        self,
+        status: str | None = None,
+        job_type: str | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
+    ):
+        query = select(CollectJob)
         if status:
             query = query.where(CollectJob.status == status)
         if job_type:
@@ -42,8 +66,7 @@ class JobQueryService:
                 date_to.year, date_to.month, date_to.day, tzinfo=_FILTER_TZ
             ) + timedelta(days=1)
             query = query.where(CollectJob.created_at < end)
-        jobs = self.db.scalars(query).all()
-        return [JobOut.model_validate(j) for j in jobs]
+        return query
 
     def get_job(self, job_id: int) -> JobOut | None:
         job = self.db.get(CollectJob, job_id)
@@ -72,6 +95,16 @@ class JobQueryService:
         if status:
             query = query.where(CollectJobItem.status == status)
         return self.db.scalar(query) or 0
+
+    def list_job_logs(self, job_id: int, limit: int = 200) -> list[JobLogOut]:
+        limit = min(max(limit, 1), 500)
+        logs = self.db.scalars(
+            select(CollectJobLog)
+            .where(CollectJobLog.job_id == job_id)
+            .order_by(CollectJobLog.id.desc())
+            .limit(limit)
+        ).all()
+        return [JobLogOut.model_validate(log) for log in reversed(logs)]
 
     @staticmethod
     def _to_job_item_out(item: CollectJobItem) -> JobItemOut:

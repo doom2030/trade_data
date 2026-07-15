@@ -41,6 +41,7 @@
     <label class="form-label">结束日期</label>
     <input class="form-input" type="date" name="date_to" value="{{ filter_date_to or '' }}">
   </div>
+  <input type="hidden" name="limit" value="{{ job_limit }}">
   <button type="submit" class="btn btn-primary">筛选</button>
   {% if filter_status or filter_job_type or filter_date_from or filter_date_to %}
   <a class="btn btn-secondary" href="/jobs">重置</a>
@@ -49,10 +50,15 @@
 
 <div class="glass-panel">
   {% if jobs %}
+  <form method="post" action="/jobs/delete" onsubmit="return confirm('确定删除选中的任务吗？运行中的任务不会被删除。')">
+  <div style="padding:14px 16px;border-bottom:1px solid var(--border-subtle);display:flex;gap:10px;align-items:center">
+    <button type="submit" class="btn btn-secondary btn-sm">删除选中</button>
+  </div>
   <div class="data-table-wrap">
     <table class="data-table">
       <thead>
         <tr>
+          <th style="width:36px"></th>
           <th>ID</th>
           <th>类型</th>
           <th>状态</th>
@@ -66,6 +72,11 @@
       <tbody>
         {% for job in jobs %}
         <tr>
+          <td>
+            {% if job.status != 'running' %}
+            <input type="checkbox" name="job_ids" value="{{ job.id }}">
+            {% endif %}
+          </td>
           <td class="mono">#{{ job.id }}</td>
           <td>
             <div>{{ job_type_label(job.job_type) }}</div>
@@ -88,6 +99,23 @@
       </tbody>
     </table>
   </div>
+  </form>
+  {% if job_total > job_limit %}
+  {% set page_query = '&limit=' ~ job_limit ~ (('&status=' ~ filter_status) if filter_status else '') ~ (('&job_type=' ~ filter_job_type) if filter_job_type else '') ~ (('&date_from=' ~ filter_date_from) if filter_date_from else '') ~ (('&date_to=' ~ filter_date_to) if filter_date_to else '') %}
+  <div class="pagination-bar">
+    <span class="pagination-info">
+      显示 {{ job_offset + 1 }}–{{ job_offset + jobs|length }} / 共 {{ job_total }} 条
+    </span>
+    <div class="pagination-actions">
+      {% if job_offset > 0 %}
+      <a class="btn btn-secondary btn-sm" href="/jobs?offset={{ at_least(job_offset - job_limit) }}{{ page_query }}">上一页</a>
+      {% endif %}
+      {% if job_offset + jobs|length < job_total %}
+      <a class="btn btn-secondary btn-sm" href="/jobs?offset={{ job_offset + job_limit }}{{ page_query }}">下一页</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
   {% else %}
   <div class="empty-state"><p>暂无任务记录</p></div>
   {% endif %}

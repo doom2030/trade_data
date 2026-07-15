@@ -12,6 +12,7 @@ REQUIRED_TABLES = (
     "stock_master",
     "collect_job",
     "collect_job_item",
+    "collect_job_log",
     "trade_calendar",
     "industry_board",
     "stock_industry_board",

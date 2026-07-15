@@ -26,11 +26,12 @@ def list_jobs(
     job_type: str | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
+    offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=MAX_JOBS_LIMIT),
     db: Session = Depends(get_db),
 ):
     return JobQueryService(db).list_jobs(
-        status, job_type, limit, date_from=date_from, date_to=date_to
+        status, job_type, limit, offset=offset, date_from=date_from, date_to=date_to
     )
 
 

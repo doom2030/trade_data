@@ -13,6 +13,11 @@
     <button type="submit" class="btn btn-primary">重试失败项</button>
   </form>
   {% endif %}
+  {% if job.status != 'running' %}
+  <form method="post" action="/jobs/{{ job.id }}/delete" style="display:inline" onsubmit="return confirm('确定删除任务 #{{ job.id }} 吗？')">
+    <button type="submit" class="btn btn-secondary">删除任务</button>
+  </form>
+  {% endif %}
 </div>
 
 {% if message %}
@@ -32,81 +37,38 @@
   <div class="detail-item"><div class="label">跳过</div><div class="value">{{ job.skipped_items }}</div></div>
   <div class="detail-item"><div class="label">插入</div><div class="value">{{ job.inserted_rows }}</div></div>
   <div class="detail-item"><div class="label">更新</div><div class="value">{{ job.updated_rows }}</div></div>
+  {% if job.params and job.params.progress %}
+  <div class="detail-item" style="grid-column:1/-1">
+    <div class="label">当前阶段</div>
+    <div class="value mono" style="font-size:13px">{{ job.params.progress.stage }}</div>
+    <div class="mono job-type-code" style="margin-top:4px">{{ job.params.progress }}</div>
+  </div>
+  {% endif %}
   {% if job.error_message %}
   <div class="detail-item" style="grid-column:1/-1"><div class="label">错误</div><div class="value" style="color:var(--red);font-size:13px">{{ job.error_message }}</div></div>
   {% endif %}
 </div>
 
-<div class="glass-panel">
+<div class="glass-panel" style="margin-top:20px">
   <div style="padding:16px 24px;border-bottom:1px solid var(--border-subtle);display:flex;justify-content:space-between;align-items:center">
-    <h3 style="font-size:15px;font-weight:600">任务明细</h3>
-    <form method="get" style="display:flex;gap:8px;align-items:center">
-      <input type="hidden" name="limit" value="{{ item_limit }}">
-      <select class="form-select" name="item_status" style="width:auto;padding:8px 12px">
-        <option value="">全部状态</option>
-        <option value="failed" {% if item_status == 'failed' %}selected{% endif %}>失败</option>
-        <option value="success" {% if item_status == 'success' %}selected{% endif %}>成功</option>
-        <option value="exhausted" {% if item_status == 'exhausted' %}selected{% endif %}>已耗尽</option>
-      </select>
-      <button type="submit" class="btn btn-secondary btn-sm">筛选</button>
-    </form>
+    <h3 style="font-size:15px;font-weight:600">执行日志</h3>
+    <span class="pagination-info">最近 {{ logs|length }} 条</span>
   </div>
-  {% if items %}
-  <div class="data-table-wrap">
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>股票</th>
-          <th>周期</th>
-          <th>复权</th>
-          <th>日期范围</th>
-          <th>状态</th>
-          <th>尝试</th>
-          <th>错误</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for item in items %}
-        <tr>
-          <td class="mono">{{ item.id }}</td>
-          <td class="mono">{{ item.symbol or '-' }}</td>
-          <td>{{ frequency_label(item.frequency) if item.frequency else '-' }}</td>
-          <td>{{ adjust_label(item.adjust_flag) if item.adjust_flag else '-' }}</td>
-          <td class="mono">{{ item.start_date or '' }} ~ {{ item.end_date or '' }}</td>
-          <td><span class="badge badge-{{ item.status if item.status in ['success','failed','pending','running','exhausted'] else 'pending' }}">{{ status_label(item.status) }}</span></td>
-          <td class="mono">{{ item.attempt_count }}</td>
-          <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ item.error_message or '-' }}</td>
-          <td>
-            {% if item.status in ['failed', 'exhausted'] and not item.retry_of_item_id %}
-            <form method="post" action="/job-items/{{ item.id }}/retry" style="display:inline">
-              <button type="submit" class="btn btn-ghost btn-sm">重试</button>
-            </form>
-            {% endif %}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% if item_total > item_limit %}
-  <div class="pagination-bar">
-    <span class="pagination-info">
-      显示 {{ item_offset + 1 }}–{{ item_offset + items|length }} / 共 {{ item_total }} 条
-    </span>
-    <div class="pagination-actions">
-      {% if item_offset > 0 %}
-      <a class="btn btn-secondary btn-sm" href="?offset={{ at_least(item_offset - item_limit) }}&limit={{ item_limit }}{% if item_status %}&item_status={{ item_status }}{% endif %}">上一页</a>
-      {% endif %}
-      {% if item_offset + items|length < item_total %}
-      <a class="btn btn-secondary btn-sm" href="?offset={{ item_offset + item_limit }}&limit={{ item_limit }}{% if item_status %}&item_status={{ item_status }}{% endif %}">下一页</a>
+  {% if logs %}
+  <div class="job-log-list">
+    {% for log in logs %}
+    <div class="job-log-row">
+      <span class="mono job-log-time">{{ log.created_at | format_datetime }}</span>
+      <span class="badge badge-{{ 'failed' if log.level == 'error' else 'running' }}">{{ log.level }}</span>
+      <span class="job-log-message">{{ log.message }}</span>
+      {% if log.payload %}
+      <span class="mono job-log-payload">{{ log.payload }}</span>
       {% endif %}
     </div>
+    {% endfor %}
   </div>
-  {% endif %}
   {% else %}
-  <div class="empty-state"><p>无明细记录</p></div>
+  <div class="empty-state"><p>暂无执行日志</p></div>
   {% endif %}
 </div>
 {% endblock %}

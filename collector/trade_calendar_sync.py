@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.models import CollectJob, TradeCalendar
 from collector.baostock_client import BaostockClient, BaostockError
-from collector.job_helper import create_job, finalize_job
+from collector.job_helper import append_job_log, create_job, finalize_job
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -51,14 +51,23 @@ def sync_trade_calendar(
 
     try:
         try:
+            append_job_log(
+                session,
+                job,
+                "开始请求 baostock 交易日历",
+                payload={"start_date": start_date.isoformat(), "end_date": end_date.isoformat()},
+            )
+            session.commit()
             rows = client.query_trade_calendar(start_date, end_date)
             source = "baostock"
             upserted = _upsert_calendar_rows(session, rows, source)
         except BaostockError:
+            append_job_log(session, job, "baostock 交易日历不可用，开始用基准股票推断", level="error")
             logger.info("baostock trade calendar unavailable, inferring from benchmark symbols")
             upserted = _infer_calendar(session, client, start_date, end_date)
 
         finalize_job(session, job, inserted_rows=upserted)
+        append_job_log(session, job, "交易日历写入完成", payload={"rows": upserted})
         session.commit()
         return upserted
     except Exception as e:

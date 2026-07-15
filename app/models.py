@@ -252,6 +252,22 @@ class CollectJob(Base):
     )
 
 
+class CollectJobLog(Base):
+    __tablename__ = "collect_job_log"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    job_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("collect_job.id"), nullable=False)
+    level: Mapped[str] = mapped_column(Text, nullable=False, default="info")
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    payload: Mapped[dict | None] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_collect_job_log_job_id", "job_id", "id"),
+        Index("idx_collect_job_log_created_at", "created_at"),
+    )
+
+
 class CollectJobItem(Base):
     __tablename__ = "collect_job_item"
 

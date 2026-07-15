@@ -2,7 +2,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from app.models import TradeCalendar
+from app.models import CollectJob, CollectJobLog, TradeCalendar
 from collector.trade_calendar_sync import ensure_trade_calendar_for_date, sync_trade_calendar
 from scripts.sync_trade_calendar import default_calendar_range, resolve_calendar_range
 
@@ -69,9 +69,13 @@ class TestSyncTradeCalendar:
         class FakeSession:
             def __init__(self):
                 self.job = None
+                self.logs = []
 
             def add(self, obj):
-                self.job = obj
+                if isinstance(obj, CollectJob):
+                    self.job = obj
+                elif isinstance(obj, CollectJobLog):
+                    self.logs.append(obj)
 
             def flush(self):
                 if self.job and self.job.id is None:

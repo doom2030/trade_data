@@ -47,6 +47,17 @@ class JobItemOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class JobLogOut(BaseModel):
+    id: int
+    job_id: int
+    level: str
+    message: str
+    payload: dict | None = None
+    created_at: datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+
 class JobRetryRequest(BaseModel):
     only_failed_items: bool = True
     max_attempts: int = Field(default=3, ge=1, le=15)

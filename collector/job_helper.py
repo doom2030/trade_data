@@ -3,7 +3,7 @@ from datetime import date, datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import CollectJob, CollectJobItem
+from app.models import CollectJob, CollectJobItem, CollectJobLog
 
 
 def create_job(
@@ -36,6 +36,35 @@ def create_job(
     session.add(job)
     session.flush()
     return job
+
+
+def set_job_progress(session: Session, job: CollectJob, stage: str, **extra) -> None:
+    progress = {
+        "stage": stage,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        **extra,
+    }
+    job.params = {**(job.params or {}), "progress": progress}
+    session.flush()
+
+
+def append_job_log(
+    session: Session,
+    job: CollectJob,
+    message: str,
+    *,
+    level: str = "info",
+    payload: dict | None = None,
+) -> None:
+    session.add(
+        CollectJobLog(
+            job_id=job.id,
+            level=level,
+            message=message,
+            payload=payload,
+        )
+    )
+    session.flush()
 
 
 def create_job_item(
