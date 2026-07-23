@@ -31,12 +31,27 @@
     <div class="value">{{ job_type_label(job.job_type) }}</div>
     <div class="mono job-type-code" style="margin-top:4px">{{ job.job_type }}</div>
   </div>
+  {% if job.target_trade_date %}
+  <div class="detail-item"><div class="label">交易日</div><div class="value mono">{{ job.target_trade_date }}</div></div>
+  {% endif %}
   <div class="detail-item"><div class="label">总数</div><div class="value">{{ job.total_items }}</div></div>
   <div class="detail-item"><div class="label">成功</div><div class="value" style="color:var(--green)">{{ job.success_items }}</div></div>
   <div class="detail-item"><div class="label">失败</div><div class="value" style="color:var(--red)">{{ job.failed_items }}</div></div>
   <div class="detail-item"><div class="label">跳过</div><div class="value">{{ job.skipped_items }}</div></div>
-  <div class="detail-item"><div class="label">插入</div><div class="value">{{ job.inserted_rows }}</div></div>
-  <div class="detail-item"><div class="label">更新</div><div class="value">{{ job.updated_rows }}</div></div>
+  <div class="detail-item"><div class="label">插入行</div><div class="value">{{ job.inserted_rows }}</div></div>
+  <div class="detail-item"><div class="label">更新行</div><div class="value">{{ job.updated_rows }}</div></div>
+  {% if job.params and job.params.summary %}
+  <div class="detail-item" style="grid-column:1/-1">
+    <div class="label">汇总</div>
+    <div class="value mono" style="font-size:13px">
+      总数 {{ job.params.summary.total_items }} ·
+      成功 {{ job.params.summary.success_items }} ·
+      失败 {{ job.params.summary.failed_items }} ·
+      跳过 {{ job.params.summary.skipped_items }} ·
+      写入 {{ (job.params.summary.inserted_rows or 0) + (job.params.summary.updated_rows or 0) }}
+    </div>
+  </div>
+  {% endif %}
   {% if job.params and job.params.progress %}
   <div class="detail-item" style="grid-column:1/-1">
     <div class="label">当前阶段</div>
@@ -45,7 +60,91 @@
   </div>
   {% endif %}
   {% if job.error_message %}
-  <div class="detail-item" style="grid-column:1/-1"><div class="label">错误</div><div class="value" style="color:var(--red);font-size:13px">{{ job.error_message }}</div></div>
+  <div class="detail-item" style="grid-column:1/-1"><div class="label">说明 / 错误</div><div class="value" style="color:var(--red);font-size:13px">{{ job.error_message }}</div></div>
+  {% endif %}
+</div>
+
+<div class="glass-panel" style="margin-top:20px">
+  <div style="padding:16px 24px;border-bottom:1px solid var(--border-subtle);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+    <h3 style="font-size:15px;font-weight:600">任务明细</h3>
+    <form class="filter-bar" method="get" action="/jobs/{{ job.id }}" style="padding:0;margin:0;border:0;display:flex;gap:8px;align-items:end">
+      <div class="form-group" style="margin:0">
+        <label class="form-label">状态</label>
+        <select class="form-select" name="item_status" onchange="this.form.submit()">
+          <option value="">全部</option>
+          {% for st in ['success','failed','skipped','pending','running','exhausted','compensated'] %}
+          <option value="{{ st }}" {% if filter_item_status == st %}selected{% endif %}>{{ status_label(st) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <input type="hidden" name="item_limit" value="{{ item_limit }}">
+    </form>
+  </div>
+  {% if items %}
+  <div class="data-table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>股票</th>
+          <th>复权</th>
+          <th>区间</th>
+          <th>状态</th>
+          <th>写入</th>
+          <th>错误</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        <tr>
+          <td class="mono">#{{ item.id }}</td>
+          <td class="mono">{{ item.symbol or '-' }}</td>
+          <td>{{ adjust_label(item.adjust_flag) if item.adjust_flag else '-' }}</td>
+          <td class="mono">
+            {% if item.start_date and item.end_date %}
+              {{ item.start_date }}{% if item.start_date != item.end_date %} ~ {{ item.end_date }}{% endif %}
+            {% else %}-{% endif %}
+          </td>
+          <td>
+            {% if item.status == 'success' %}<span class="badge badge-success">{{ status_label(item.status) }}</span>
+            {% elif item.status == 'failed' %}<span class="badge badge-failed">{{ status_label(item.status) }}</span>
+            {% elif item.status == 'skipped' %}<span class="badge badge-pending">{{ status_label(item.status) }}</span>
+            {% elif item.status == 'running' %}<span class="badge badge-running">{{ status_label(item.status) }}</span>
+            {% else %}<span class="badge badge-partial">{{ status_label(item.status) }}</span>{% endif %}
+          </td>
+          <td class="mono">{{ item.inserted_rows + item.updated_rows }}</td>
+          <td style="max-width:240px;font-size:12px;color:var(--text-muted)">{{ item.error_message or '-' }}</td>
+          <td>
+            {% if item.status == 'failed' %}
+            <form method="post" action="/job-items/{{ item.id }}/retry" style="display:inline">
+              <button type="submit" class="btn btn-secondary btn-sm">重试</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if item_total > item_limit %}
+  {% set item_query = (('&item_status=' ~ filter_item_status) if filter_item_status else '') ~ '&item_limit=' ~ item_limit %}
+  <div class="pagination-bar">
+    <span class="pagination-info">
+      显示 {{ item_offset + 1 }}–{{ item_offset + items|length }} / 共 {{ item_total }} 条
+    </span>
+    <div class="pagination-actions">
+      {% if item_offset > 0 %}
+      <a class="btn btn-secondary btn-sm" href="/jobs/{{ job.id }}?item_offset={{ at_least(item_offset - item_limit) }}{{ item_query }}">上一页</a>
+      {% endif %}
+      {% if item_offset + items|length < item_total %}
+      <a class="btn btn-secondary btn-sm" href="/jobs/{{ job.id }}?item_offset={{ item_offset + item_limit }}{{ item_query }}">下一页</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+  {% else %}
+  <div class="empty-state"><p>暂无任务明细（批量同步类任务通常只有汇总计数）</p></div>
   {% endif %}
 </div>
 

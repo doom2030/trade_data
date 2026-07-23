@@ -244,12 +244,19 @@ def job_detail_page(
     request: Request,
     db: Session = Depends(get_db),
     message: str | None = Query(None),
+    item_status: str | None = Query(None),
+    item_offset: int = Query(0, ge=0),
+    item_limit: int = Query(50, ge=1, le=200),
 ):
     job = db.get(CollectJob, job_id)
     if not job:
         return RedirectResponse("/jobs", status_code=303)
     query_service = JobQueryService(db)
     logs = query_service.list_job_logs(job_id)
+    items = query_service.list_job_items(
+        job_id, status=item_status, offset=item_offset, limit=item_limit
+    )
+    item_total = query_service.count_job_items(job_id, status=item_status)
     return templates.TemplateResponse(
         request,
         "job_detail.html",
@@ -259,6 +266,11 @@ def job_detail_page(
             job=job,
             message=message,
             logs=logs,
+            items=items,
+            item_total=item_total,
+            item_offset=item_offset,
+            item_limit=item_limit,
+            filter_item_status=item_status or "",
         ),
     )
 

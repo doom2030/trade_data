@@ -51,7 +51,7 @@
           <th>ID</th>
           <th>类型</th>
           <th>状态</th>
-          <th>成功/总数</th>
+          <th>成功/失败/跳过/总数</th>
           <th>写入行数</th>
           <th>创建时间</th>
           <th></th>
@@ -73,7 +73,7 @@
             {% elif job.status == 'partial_success' %}<span class="badge badge-partial">{{ status_label(job.status) }}</span>
             {% else %}<span class="badge">{{ status_label(job.status) }}</span>{% endif %}
           </td>
-          <td class="mono">{{ job.success_items }}/{{ job.total_items }}</td>
+          <td class="mono">{{ job.success_items }}/{{ job.failed_items }}/{{ job.skipped_items }}/{{ job.total_items }}</td>
           <td class="mono">{{ job.inserted_rows + job.updated_rows }}</td>
           <td class="mono">{{ job.created_at | format_datetime }}</td>
           <td><a href="/jobs/{{ job.id }}">详情</a></td>

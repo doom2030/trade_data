@@ -470,7 +470,12 @@ def daily_update_klines(
         )
         job.params = {**(job.params or {}), "skip_reason": "non_trading_day"}
         session.commit()
-        finalize_job(session, job)
+        finalize_job(
+            session,
+            job,
+            bulk_skipped=True,
+            error_message=f"{trade_date.isoformat()} is not a trading day",
+        )
         session.commit()
         return job
 

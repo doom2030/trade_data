@@ -100,27 +100,57 @@ def finalize_job(
     *,
     inserted_rows: int | None = None,
     updated_rows: int | None = None,
+    bulk_skipped: bool = False,
+    bulk_failed: bool = False,
+    error_message: str | None = None,
 ) -> None:
     """Finalize job counters and status.
 
     Itemized jobs (e.g. kline backfill): aggregate from CollectJobItem rows.
-    Bulk jobs with no items (e.g. sync_industry): treat as a single successful
-    unit and accept optional row counts so totals are not left at zero.
+    Bulk jobs with no items (e.g. sync_industry): treat as a single unit and
+    accept optional row counts. Use bulk_skipped / bulk_failed for non-item
+    outcomes such as non-trading-day skips.
     """
     items = session.scalars(select(CollectJobItem).where(CollectJobItem.job_id == job.id)).all()
 
     if not items:
         job.total_items = 1
-        job.success_items = 1
-        job.failed_items = 0
-        job.skipped_items = 0
         job.exhausted_items = 0
         job.compensated_items = 0
         if inserted_rows is not None:
             job.inserted_rows = inserted_rows
         if updated_rows is not None:
             job.updated_rows = updated_rows
-        job.status = "success"
+        if bulk_failed:
+            job.success_items = 0
+            job.failed_items = 1
+            job.skipped_items = 0
+            job.status = "failed"
+            if error_message:
+                job.error_message = error_message
+        elif bulk_skipped:
+            job.success_items = 0
+            job.failed_items = 0
+            job.skipped_items = 1
+            job.status = "success"
+            if error_message:
+                job.error_message = error_message
+        else:
+            job.success_items = 1
+            job.failed_items = 0
+            job.skipped_items = 0
+            job.status = "success"
+        job.params = {
+            **(job.params or {}),
+            "summary": {
+                "total_items": job.total_items,
+                "success_items": job.success_items,
+                "failed_items": job.failed_items,
+                "skipped_items": job.skipped_items,
+                "inserted_rows": job.inserted_rows,
+                "updated_rows": job.updated_rows,
+            },
+        }
         job.finished_at = datetime.now(timezone.utc)
         session.flush()
         return
@@ -137,9 +167,7 @@ def finalize_job(
     effective = job.total_items - job.skipped_items
     if effective == 0:
         job.status = "success"
-        if job.params is None:
-            job.params = {}
-        job.params["all_skipped"] = True
+        job.params = {**(job.params or {}), "all_skipped": True}
     else:
         fail_rate = job.failed_items / effective
         if fail_rate == 0:
@@ -149,6 +177,19 @@ def finalize_job(
         else:
             job.status = "failed"
 
+    job.params = {
+        **(job.params or {}),
+        "summary": {
+            "total_items": job.total_items,
+            "success_items": job.success_items,
+            "failed_items": job.failed_items,
+            "skipped_items": job.skipped_items,
+            "exhausted_items": job.exhausted_items,
+            "compensated_items": job.compensated_items,
+            "inserted_rows": job.inserted_rows,
+            "updated_rows": job.updated_rows,
+        },
+    }
     job.finished_at = datetime.now(timezone.utc)
     session.flush()
 

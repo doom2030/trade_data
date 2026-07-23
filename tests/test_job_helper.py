@@ -67,6 +67,25 @@ class TestFinalizeJobLogic:
         assert job.failed_items == 0
         assert job.inserted_rows == 4533
         assert not (job.params or {}).get("all_skipped")
+        assert (job.params or {}).get("summary", {}).get("success_items") == 1
+
+    def test_bulk_skipped_job_sets_skip_counters(self):
+        job = CollectJob(job_type="daily_update", status="running")
+
+        finalize_job(
+            _NoItemSession(),
+            job,
+            bulk_skipped=True,
+            error_message="2026-07-12 is not a trading day",
+        )
+
+        assert job.status == "success"
+        assert job.total_items == 1
+        assert job.success_items == 0
+        assert job.failed_items == 0
+        assert job.skipped_items == 1
+        assert job.error_message == "2026-07-12 is not a trading day"
+        assert (job.params or {}).get("summary", {}).get("skipped_items") == 1
 
     def test_itemized_job_aggregates_from_items(self):
         job = CollectJob(id=1, job_type="backfill_kline", status="running")
@@ -83,3 +102,4 @@ class TestFinalizeJobLogic:
         assert job.inserted_rows == 10
         assert job.updated_rows == 1
         assert job.status == "failed"
+        assert (job.params or {}).get("summary", {}).get("failed_items") == 1
