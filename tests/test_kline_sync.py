@@ -1,5 +1,7 @@
 from datetime import date
 
+import pytest
+
 from app.models import CollectJobItem, TradeCalendar
 from collector.kline_sync import analyze_suspension_from_items, is_trading_day
 
@@ -324,21 +326,6 @@ class TestGetMissedTradingDays:
 
 
 class TestMissingKlineRanges:
-    def test_collapse_sorted_dates_to_ranges(self):
-        from collector.kline_sync import collapse_sorted_dates_to_ranges
-
-        dates = [
-            date(2026, 7, 1),
-            date(2026, 7, 2),
-            date(2026, 7, 4),
-            date(2026, 7, 5),
-            date(2026, 7, 6),
-        ]
-        assert collapse_sorted_dates_to_ranges(dates) == [
-            (date(2026, 7, 1), date(2026, 7, 2)),
-            (date(2026, 7, 4), date(2026, 7, 6)),
-        ]
-
     def test_day_skips_covered_and_suspended(self):
         from collector.kline_sync import missing_kline_ranges
 
@@ -404,35 +391,84 @@ class TestMissingKlineRanges:
             FakeSession(),
             symbol="sh.600000",
             frequency="day",
-            adjust_flag="none",
+            adjust_flag="forward",
             start=date(2026, 7, 1),
             end=date(2026, 7, 2),
         )
         assert ranges == []
 
-    def test_week_fills_leading_gap(self):
+    def test_rejects_non_day_frequency(self):
         from collector.kline_sync import missing_kline_ranges
 
-        existing = [date(2026, 3, 1), date(2026, 3, 8)]
+        with pytest.raises(ValueError, match="Unsupported frequency"):
+            missing_kline_ranges(
+                object(),
+                symbol="sh.600000",
+                frequency="week",
+                adjust_flag="forward",
+                start=date(2026, 1, 1),
+                end=date(2026, 3, 15),
+            )
 
-        class FakeSession:
-            def scalars(self, query):
-                class Result:
-                    def __init__(self, values):
-                        self.values = values
 
-                    def all(self):
-                        return self.values
+class TestCollectKlineItemSkip:
+    def test_day_complete_skips_baostock(self, monkeypatch):
+        from app.models import CollectJobItem, StockMaster
+        from collector.kline_sync import collect_kline_item
 
-                return Result(existing)
-
-        ranges = missing_kline_ranges(
-            FakeSession(),
+        stock = StockMaster(
             symbol="sh.600000",
-            frequency="week",
-            adjust_flag="forward",
-            start=date(2026, 1, 1),
-            end=date(2026, 3, 15),
+            exchange="sh",
+            code="600000",
+            name="浦发银行",
+            board="sh_main",
+            status="active",
         )
-        assert ranges[0] == (date(2026, 1, 1), date(2026, 2, 28))
-        assert ranges[-1][0] == date(2026, 3, 9)
+        item = CollectJobItem(
+            id=1,
+            job_id=10,
+            symbol="sh.600000",
+            frequency="day",
+            adjust_flag="forward",
+            start_date=date(2026, 7, 1),
+            end_date=date(2026, 7, 2),
+            status="pending",
+        )
+
+        class Session:
+            def __init__(self):
+                self.committed = False
+
+            def get(self, model, key):
+                if model is StockMaster:
+                    return stock
+                return None
+
+            def flush(self):
+                return None
+
+            def commit(self):
+                self.committed = True
+
+        class Client:
+            def __init__(self):
+                self.called = False
+
+            def query_kline(self, *args, **kwargs):
+                self.called = True
+                raise AssertionError("baostock should not be called")
+
+        monkeypatch.setattr(
+            "collector.kline_sync.missing_kline_ranges",
+            lambda *args, **kwargs: [],
+        )
+
+        session = Session()
+        client = Client()
+        collect_kline_item(session, client, item)
+
+        assert item.status == "skipped"
+        assert item.error_message == "Already complete in range"
+        assert item.finished_at is not None
+        assert session.committed is True
+        assert client.called is False

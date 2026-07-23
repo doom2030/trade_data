@@ -13,7 +13,7 @@ from collector.collect_lock import acquire_collect_lock, format_lock_contention_
 from collector.industry_board_sync import sync_industry_boards
 from collector.industry_sync import sync_industry
 from collector.job_helper import append_job_log, finalize_job, mark_stale_running_jobs, set_job_progress
-from collector.kline_sync import collect_kline_item, daily_update_klines, run_catchup_job, update_weekly_monthly
+from collector.kline_sync import collect_kline_item, daily_update_klines, run_catchup_job
 from collector.quality_check import run_quality_check
 from collector.retry_service import apply_retry_outcome, max_attempts_for_item, retry_failed_items
 from collector.stock_meta_sync import sync_stock_meta
@@ -28,8 +28,6 @@ PENDING_JOB_TYPES = {
     "sync_industry_boards",
     "sync_trade_calendar",
     "daily_update",
-    "update_weekly",
-    "update_monthly",
     "retry_failed_jobs",
     "quality_check",
     "manual_retry_failed_job",
@@ -93,8 +91,6 @@ def _execute_claimed_job(session: Session, client: BaostockClient, job_id: int) 
             "sync_industry_boards",
             "sync_trade_calendar",
             "daily_update",
-            "update_weekly",
-            "update_monthly",
             "retry_failed_jobs",
             "quality_check",
         }:
@@ -229,14 +225,6 @@ def _execute_queued_job(session: Session, client: BaostockClient, job: CollectJo
         set_job_progress(session, job, "daily_update", trade_date=trade_date.isoformat())
         session.commit()
         daily_update_klines(session, client, trade_date, job=job)
-    elif job.job_type == "update_weekly":
-        set_job_progress(session, job, "update_weekly")
-        session.commit()
-        update_weekly_monthly(session, client, "week", _date_param(params, "end_date"), job=job)
-    elif job.job_type == "update_monthly":
-        set_job_progress(session, job, "update_monthly")
-        session.commit()
-        update_weekly_monthly(session, client, "month", _date_param(params, "end_date"), job=job)
     elif job.job_type == "retry_failed_jobs":
         set_job_progress(session, job, "retry_failed_jobs")
         session.commit()

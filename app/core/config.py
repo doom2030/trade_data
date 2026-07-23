@@ -10,12 +10,13 @@ class Settings(BaseSettings):
     app_env: str = "dev"
     database_url: str = "postgresql+psycopg://trade:trade@localhost:5432/trade_data"
 
-    default_history_start_date: str = "2020-01-01"
+    default_history_start_date: str = "2023-01-01"
     default_history_end_date: str = ""
-    periodic_frequencies: str = "day,week,month"
-    periodic_adjust_flags: str = "none,forward,backward"
-    default_adjust_flag: Literal["none", "forward", "backward"] = "forward"
-    backfill_priority: str = "day,week,month"
+    # Trimmed product scope: day kline + forward adjust only.
+    periodic_frequencies: str = "day"
+    periodic_adjust_flags: str = "forward"
+    default_adjust_flag: Literal["forward"] = "forward"
+    backfill_priority: str = "day"
 
     collect_retry_times: int = 3
     collect_retry_sleep_seconds: int = 3

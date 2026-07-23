@@ -1,5 +1,5 @@
 import logging
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 
 from sqlalchemy import and_, or_, select
 from sqlalchemy.dialects.postgresql import insert
@@ -14,10 +14,6 @@ from collector.kline_table_router import get_kline_model, make_period_start
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-# Week/month bars are sparse; treat calendar gaps larger than this as missing periods.
-_WEEK_GAP_DAYS = 14
-_MONTH_GAP_DAYS = 45
-
 
 def is_trading_day(session: Session, trade_date: date) -> bool:
     cal = session.get(TradeCalendar, trade_date)
@@ -31,22 +27,6 @@ def effective_start(stock: StockMaster, default_start: date) -> date:
     if stock.ipo_date and stock.ipo_date > default_start:
         return stock.ipo_date
     return default_start
-
-
-def collapse_sorted_dates_to_ranges(dates: list[date]) -> list[tuple[date, date]]:
-    """Collapse a sorted list of dates into inclusive contiguous calendar ranges."""
-    if not dates:
-        return []
-    ranges: list[tuple[date, date]] = []
-    range_start = prev = dates[0]
-    for current in dates[1:]:
-        if current == prev + timedelta(days=1):
-            prev = current
-            continue
-        ranges.append((range_start, prev))
-        range_start = prev = current
-    ranges.append((range_start, prev))
-    return ranges
 
 
 def collapse_trading_day_gaps(
@@ -78,11 +58,12 @@ def missing_kline_ranges(
     start: date,
     end: date,
 ) -> list[tuple[date, date]]:
-    """Return inclusive date ranges that still need fetching from baostock.
+    """Return inclusive day ranges that still need fetching from baostock.
 
-    Day bars: compare against trading calendar (open suspensions count as covered).
-    Week/month: cover leading/trailing holes and large gaps between existing bars.
+    Compares against the trading calendar; open suspensions count as covered.
     """
+    if frequency != "day":
+        raise ValueError(f"Unsupported frequency for gap detection: {frequency}")
     if start > end:
         return []
 
@@ -98,57 +79,32 @@ def missing_kline_ranges(
         .order_by(model.trade_date)
     ).all()
 
-    if frequency == "day":
-        trading_days = session.scalars(
-            select(TradeCalendar.trade_date)
-            .where(
-                TradeCalendar.is_trading_day.is_(True),
-                TradeCalendar.trade_date >= start,
-                TradeCalendar.trade_date <= end,
-            )
-            .order_by(TradeCalendar.trade_date)
-        ).all()
-        if not trading_days:
-            # Without a trading calendar we cannot detect day gaps safely.
-            return [(start, end)]
-
-        existing_set = set(existing)
-        suspended = set(
-            session.scalars(
-                select(StockSuspension.trade_date).where(
-                    StockSuspension.symbol == symbol,
-                    StockSuspension.trade_date >= start,
-                    StockSuspension.trade_date <= end,
-                    StockSuspension.resolved_at.is_(None),
-                )
-            ).all()
+    trading_days = session.scalars(
+        select(TradeCalendar.trade_date)
+        .where(
+            TradeCalendar.is_trading_day.is_(True),
+            TradeCalendar.trade_date >= start,
+            TradeCalendar.trade_date <= end,
         )
-        missing = [d for d in trading_days if d not in existing_set and d not in suspended]
-        return collapse_trading_day_gaps(trading_days, missing)
-
-    # week / month: no dense calendar — fill leading, trailing, and large interior gaps.
-    if not existing:
+        .order_by(TradeCalendar.trade_date)
+    ).all()
+    if not trading_days:
+        # Without a trading calendar we cannot detect day gaps safely.
         return [(start, end)]
 
-    gap_limit = _WEEK_GAP_DAYS if frequency == "week" else _MONTH_GAP_DAYS
-    missing_dates: list[date] = []
-    if existing[0] > start:
-        cursor = start
-        while cursor < existing[0]:
-            missing_dates.append(cursor)
-            cursor += timedelta(days=1)
-    for left, right in zip(existing, existing[1:]):
-        if (right - left).days > gap_limit:
-            cursor = left + timedelta(days=1)
-            while cursor < right:
-                missing_dates.append(cursor)
-                cursor += timedelta(days=1)
-    if existing[-1] < end:
-        cursor = existing[-1] + timedelta(days=1)
-        while cursor <= end:
-            missing_dates.append(cursor)
-            cursor += timedelta(days=1)
-    return collapse_sorted_dates_to_ranges(missing_dates)
+    existing_set = set(existing)
+    suspended = set(
+        session.scalars(
+            select(StockSuspension.trade_date).where(
+                StockSuspension.symbol == symbol,
+                StockSuspension.trade_date >= start,
+                StockSuspension.trade_date <= end,
+                StockSuspension.resolved_at.is_(None),
+            )
+        ).all()
+    )
+    missing = [d for d in trading_days if d not in existing_set and d not in suspended]
+    return collapse_trading_day_gaps(trading_days, missing)
 
 
 def upsert_klines(session: Session, frequency: str, rows: list[dict]) -> tuple[int, int]:
@@ -216,6 +172,12 @@ def collect_kline_item(
         item.finished_at = datetime.now(timezone.utc)
         return
 
+    if item.frequency != "day" or item.adjust_flag != "forward":
+        item.status = "skipped"
+        item.error_message = "Only day/forward collection is supported"
+        item.finished_at = datetime.now(timezone.utc)
+        return
+
     stock = session.get(StockMaster, item.symbol)
     if not stock:
         item.status = "failed"
@@ -245,6 +207,27 @@ def collect_kline_item(
         item.error_message = f"Stock status is {stock.status}"
         item.finished_at = datetime.now(timezone.utc)
         return
+
+    # Skip baostock when every trading day in range is already covered.
+    if item.frequency == "day":
+        missing = missing_kline_ranges(
+            session,
+            symbol=item.symbol,
+            frequency=item.frequency,
+            adjust_flag=item.adjust_flag,
+            start=start,
+            end=end,
+        )
+        if not missing:
+            item.status = "skipped"
+            item.error_message = "Already complete in range"
+            item.finished_at = datetime.now(timezone.utc)
+            session.commit()
+            return
+        # Narrow request to first..last missing range endpoints (may still include
+        # small covered holes; upsert is cheap, avoiding baostock for full spans).
+        start = missing[0][0]
+        end = missing[-1][1]
 
     try:
         parent_job = session.get(CollectJob, item.job_id)
@@ -500,51 +483,6 @@ def daily_update_klines(
     session.commit()
 
     _execute_daily_date_for_job(session, client, job.id, trade_date)
-    finalize_job(session, job)
-    session.commit()
-    return job
-
-
-def update_weekly_monthly(
-    session: Session,
-    client: BaostockClient,
-    frequency: str,
-    end_date: date,
-    periods: int = 2,
-    job: CollectJob | None = None,
-) -> CollectJob:
-    job_type = "update_weekly" if frequency == "week" else "update_monthly"
-    job = job or create_job(
-        session,
-        job_type,
-        frequency=frequency,
-        end_date=end_date,
-    )
-
-    if frequency == "week":
-        start_date = end_date - timedelta(weeks=periods * 2)
-    else:
-        start_date = end_date - timedelta(days=periods * 62)
-
-    stocks = session.scalars(select(StockMaster).where(StockMaster.status == "active")).all()
-    for stock in stocks:
-        eff_start = effective_start(stock, start_date)
-        for adj in settings.adjust_flags:
-            create_job_item(
-                session,
-                job.id,
-                symbol=stock.symbol,
-                frequency=frequency,
-                adjust_flag=adj,
-                start_date=eff_start,
-                end_date=end_date,
-            )
-
-    session.commit()
-    items = session.scalars(select(CollectJobItem).where(CollectJobItem.job_id == job.id)).all()
-    for item in items:
-        collect_kline_item(session, client, item)
-
     finalize_job(session, job)
     session.commit()
     return job

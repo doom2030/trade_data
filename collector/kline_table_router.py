@@ -1,11 +1,9 @@
 from datetime import datetime, timezone
 
-from app.models import KlineDay, KlineMonth, KlineWeek
+from app.models import KlineDay
 
 KLINE_MODELS = {
     "day": KlineDay,
-    "week": KlineWeek,
-    "month": KlineMonth,
 }
 
 

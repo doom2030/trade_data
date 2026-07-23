@@ -194,26 +194,6 @@ class KlineDay(Base, KlineMixin):
     )
 
 
-class KlineWeek(Base, KlineMixin):
-    __tablename__ = "kline_week"
-
-    __table_args__ = (
-        Index("idx_kline_week_symbol_date", "symbol", "trade_date"),
-        Index("idx_kline_week_trade_date", "trade_date"),
-        Index("idx_kline_week_adjust", "adjust_flag"),
-    )
-
-
-class KlineMonth(Base, KlineMixin):
-    __tablename__ = "kline_month"
-
-    __table_args__ = (
-        Index("idx_kline_month_symbol_date", "symbol", "trade_date"),
-        Index("idx_kline_month_trade_date", "trade_date"),
-        Index("idx_kline_month_adjust", "adjust_flag"),
-    )
-
-
 class CollectJob(Base):
     __tablename__ = "collect_job"
 

@@ -11,7 +11,7 @@ class TestSyncTradeCalendarScript:
     def test_default_range_extends_to_next_year_end(self):
         start, end = default_calendar_range(today=date(2026, 7, 15))
 
-        assert start == date(2020, 1, 1)
+        assert start == date(2023, 1, 1)
         assert end == date(2027, 12, 31)
 
     def test_resolve_range_rejects_reversed_dates(self):

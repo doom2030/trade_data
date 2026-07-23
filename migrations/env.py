@@ -8,8 +8,6 @@ from app.models import (  # noqa: F401
     CollectJobItem,
     IndustryBoard,
     KlineDay,
-    KlineMonth,
-    KlineWeek,
     QualityCheckResult,
     StockIndustryBoard,
     StockIndustryCurrent,

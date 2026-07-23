@@ -32,7 +32,6 @@ def run_quality_check(session: Session, job_id: int) -> int:
         if item.status != "success" or not item.symbol or not item.frequency:
             continue
         if item.frequency != "day":
-            issues += _check_kline_ohlc(session, item, job_id)
             continue
 
         start = item.start_date
@@ -91,24 +90,6 @@ def run_quality_check(session: Session, job_id: int) -> int:
     session.flush()
     finalize_job(session, job)
     session.commit()
-    return issues
-
-
-def _check_kline_ohlc(session: Session, item: CollectJobItem, job_id: int) -> int:
-    from collector.kline_table_router import get_kline_model
-
-    model = get_kline_model(item.frequency)
-    rows = session.scalars(
-        select(model).where(
-            model.symbol == item.symbol,
-            model.adjust_flag == item.adjust_flag,
-            model.trade_date >= item.start_date,
-            model.trade_date <= item.end_date,
-        )
-    ).all()
-    issues = 0
-    for row in rows:
-        issues += _validate_kline_row(session, row, item, job_id)
     return issues
 
 

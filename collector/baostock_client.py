@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 ADJUST_MAP = {"none": "3", "forward": "2", "backward": "1"}
-FREQ_MAP = {"day": "d", "week": "w", "month": "m"}
+FREQ_MAP = {"day": "d"}
 
 
 class BaostockError(Exception):

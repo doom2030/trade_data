@@ -37,7 +37,7 @@ def upgrade() -> None:
         ["symbol"],
         ["symbol"],
     )
-    for table in ("kline_day", "kline_week", "kline_month"):
+    for table in ("kline_day",):
         op.create_foreign_key(
             f"fk_{table}_symbol",
             table,
@@ -104,7 +104,7 @@ def downgrade() -> None:
     op.drop_constraint("fk_collect_job_retry_of_job_id", "collect_job", type_="foreignkey")
     op.drop_constraint("fk_collect_job_item_symbol", "collect_job_item", type_="foreignkey")
     op.drop_constraint("fk_collect_job_item_job_id", "collect_job_item", type_="foreignkey")
-    for table in ("kline_month", "kline_week", "kline_day"):
+    for table in ("kline_day",):
         op.drop_constraint(f"fk_{table}_symbol", table, type_="foreignkey")
     op.drop_constraint("fk_stock_suspension_symbol", "stock_suspension", type_="foreignkey")
     op.drop_constraint("fk_stock_industry_current_symbol", "stock_industry_current", type_="foreignkey")

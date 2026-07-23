@@ -339,12 +339,10 @@ function toISODate(d) {
   return `${y}-${m}-${day}`;
 }
 
-function defaultRangeForFrequency(freq) {
+function defaultRangeForFrequency(_freq) {
   const end = new Date();
   const start = new Date(end);
-  if (freq === 'week') start.setDate(start.getDate() - 180);
-  else if (freq === 'month') start.setDate(start.getDate() - 730);
-  else start.setDate(start.getDate() - 30);
+  start.setDate(start.getDate() - 30);
   return { start: toISODate(start), end: toISODate(end) };
 }
 

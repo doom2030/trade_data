@@ -48,27 +48,10 @@
 <div class="stat-grid" style="margin-top:20px">
   <form class="stat-card glass-panel task-card" method="post" action="/jobs/run">
     <input type="hidden" name="action" value="daily_update">
-    <div class="stat-label">日线日常更新</div>
+    <div class="stat-label">日线日常更新（前复权）</div>
     <div class="form-group">
       <label class="form-label">交易日</label>
       <input class="form-input" type="date" name="trade_date" value="{{ today }}">
-    </div>
-    <button type="submit" class="btn btn-primary btn-sm">创建任务</button>
-  </form>
-
-  <form class="stat-card glass-panel task-card" method="post" action="/jobs/run" data-periodic-form>
-    <input type="hidden" name="action" value="update_weekly">
-    <div class="stat-label">周期线更新</div>
-    <div class="form-group">
-      <label class="form-label">周期</label>
-      <select class="form-select" data-action-select>
-        <option value="update_weekly">周线</option>
-        <option value="update_monthly">月线</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label class="form-label">结束日期</label>
-      <input class="form-input" type="date" name="end_date" value="{{ today }}">
     </div>
     <button type="submit" class="btn btn-primary btn-sm">创建任务</button>
   </form>
@@ -85,20 +68,13 @@
 </div>
 
 <div class="glass-panel" style="margin-top:20px;padding:20px 24px">
-  <h3 style="font-size:15px;font-weight:600;margin-bottom:16px">区间补采</h3>
+  <h3 style="font-size:15px;font-weight:600;margin-bottom:16px">区间补采（日线 · 前复权）</h3>
   <form class="filter-bar" method="post" action="/jobs/run" style="padding:0;margin:0;border:0">
     <input type="hidden" name="action" value="manual_backfill_range">
+    <input type="hidden" name="frequency" value="day">
     <div class="form-group">
       <label class="form-label">股票代码</label>
       <input class="form-input" name="symbol" placeholder="sh.600000" required>
-    </div>
-    <div class="form-group">
-      <label class="form-label">周期</label>
-      <select class="form-select" name="frequency">
-        <option value="day">日线</option>
-        <option value="week">周线</option>
-        <option value="month">月线</option>
-      </select>
     </div>
     <div class="form-group">
       <label class="form-label">开始日期</label>
@@ -137,13 +113,4 @@
     <button type="submit" class="btn btn-primary btn-sm">创建任务</button>
   </form>
 </div>
-<script>
-  document.querySelectorAll('[data-periodic-form]').forEach((form) => {
-    const action = form.querySelector('input[name="action"]');
-    const select = form.querySelector('[data-action-select]');
-    if (action && select) {
-      select.addEventListener('change', () => { action.value = select.value; });
-    }
-  });
-</script>
 {% endblock %}

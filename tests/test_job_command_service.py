@@ -42,3 +42,16 @@ class TestJobCommandServiceRetry:
         with pytest.raises(HTTPException) as exc:
             service.retry_job(1)
         assert exc.value.status_code == 400
+
+
+class TestJobCommandServiceTrimScope:
+    def test_rejects_weekly_monthly_actions(self):
+        service = JobCommandService(db=_FakeDb())
+        with pytest.raises(HTTPException) as exc:
+            service.trigger_job("update_weekly", {"end_date": "2026-07-01"})
+        assert exc.value.status_code == 400
+        assert "unsupported" in str(exc.value.detail).lower()
+
+        with pytest.raises(HTTPException) as exc:
+            service.trigger_job("update_monthly", {"end_date": "2026-07-01"})
+        assert exc.value.status_code == 400

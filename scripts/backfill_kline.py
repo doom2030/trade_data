@@ -6,6 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import typer
 
+from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.core.logging import setup_logging
 from collector.baostock_client import BaostockClient
@@ -14,13 +15,18 @@ from collector.collect_lock import acquire_collect_lock, format_lock_contention_
 from collector.kline_sync import backfill_klines
 
 app = typer.Typer()
+settings = get_settings()
 
 
 @app.command()
 def main(
-    frequency: str = typer.Option("all", "--frequency"),
-    adjust: str = typer.Option("all", "--adjust"),
-    start_date: str = typer.Option(None, "--start-date"),
+    frequency: str = typer.Option("day", "--frequency", help="仅支持 day（产品范围）"),
+    adjust: str = typer.Option("forward", "--adjust", help="仅支持 forward（产品范围）"),
+    start_date: str = typer.Option(
+        None,
+        "--start-date",
+        help=f"默认 {settings.default_history_start_date}",
+    ),
     end_date: str = typer.Option(None, "--end-date"),
     symbol: str = typer.Option(None, "--symbol"),
     wait: bool = typer.Option(
@@ -33,11 +39,17 @@ def main(
         "--wait-seconds",
         help="等待采集锁的最长时间（秒），仅 --wait 时生效",
     ),
+    skip_existing: bool = typer.Option(
+        True,
+        "--skip-existing/--no-skip-existing",
+        help="默认跳过已入库区间，只请求缺口",
+    ),
 ):
+    """历史日 K（前复权）回填；可中断续跑。"""
     setup_logging()
     try:
-        freqs = resolve_frequencies(frequency, allow_all=True)
-        adjs = resolve_adjust_flags(adjust, allow_all=True)
+        freqs = resolve_frequencies(frequency, allow_all=False)
+        adjs = resolve_adjust_flags(adjust, allow_all=False)
     except ValueError as e:
         raise typer.BadParameter(str(e)) from e
     start = date.fromisoformat(start_date) if start_date else None
@@ -65,12 +77,12 @@ def main(
                     start,
                     end,
                     symbols,
-                    skip_existing=True,
+                    skip_existing=skip_existing,
                 )
                 typer.echo(
-                    f"Backfill {freq}: job {job.id} status={job.status} "
+                    f"Backfill {freq}/{','.join(adjs)}: job {job.id} status={job.status} "
                     f"success={job.success_items} skipped={job.skipped_items} "
-                    f"failed={job.failed_items} skip_existing=True"
+                    f"failed={job.failed_items} skip_existing={skip_existing}"
                 )
     finally:
         client.logout()

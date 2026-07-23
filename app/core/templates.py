@@ -41,7 +41,7 @@ STATUS_LABELS = {
     "skipped": "已跳过",
 }
 
-FREQUENCY_LABELS = {"day": "日线", "week": "周线", "month": "月线"}
+FREQUENCY_LABELS = {"day": "日线"}
 ADJUST_LABELS = {"none": "不复权", "forward": "前复权", "backward": "后复权"}
 
 JOB_TYPE_LABELS = {
@@ -52,8 +52,6 @@ JOB_TYPE_LABELS = {
     "backfill_kline": "历史 K 线回填",
     "daily_update": "日线日常更新",
     "catchup_daily_update": "缺失交易日补齐",
-    "update_weekly": "周线更新",
-    "update_monthly": "月线更新",
     "retry_failed_jobs": "批量失败补偿",
     "manual_retry_failed_job": "手动重试任务",
     "manual_retry_failed_item": "手动重试明细",

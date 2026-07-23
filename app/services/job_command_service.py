@@ -117,9 +117,8 @@ class JobCommandService:
         if stock.status != "active":
             raise HTTPException(400, "Only active stocks can be backfilled")
 
-        if req.frequency not in ("day", "week", "month"):
-            raise HTTPException(400, "Invalid frequency")
-
+        if req.frequency != "day":
+            raise HTTPException(400, "Only day frequency is supported")
         if req.end < req.start:
             raise HTTPException(400, "end must be >= start")
 
@@ -229,22 +228,6 @@ class JobCommandService:
                 frequency="day",
                 target_trade_date=trade_date,
                 params={"trade_date": trade_date.isoformat()},
-            )
-        if action == "update_weekly":
-            end_date = _required(params, "end_date")
-            return self._enqueue_job(
-                "update_weekly",
-                frequency="week",
-                end_date=end_date,
-                params={"end_date": end_date.isoformat()},
-            )
-        if action == "update_monthly":
-            end_date = _required(params, "end_date")
-            return self._enqueue_job(
-                "update_monthly",
-                frequency="month",
-                end_date=end_date,
-                params={"end_date": end_date.isoformat()},
             )
         if action == "retry_failed_jobs":
             return self._enqueue_job(

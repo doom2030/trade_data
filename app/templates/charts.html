@@ -6,7 +6,7 @@
 {% block content %}
 <div class="page-header">
   <h2>K 线图表</h2>
-  <p>多周期蜡烛图 · 成交量 · 停牌标记 · 手动补采</p>
+  <p>日线蜡烛图 · 前复权 · 成交量 · 停牌标记 · 手动补采</p>
 </div>
 
 <div class="glass-panel chart-toolbar">
@@ -31,17 +31,13 @@
   <div class="form-group">
     <label class="form-label">周期</label>
     <select class="form-select" id="frequency">
-      <option value="day" {% if default_frequency == 'day' %}selected{% endif %}>日线</option>
-      <option value="week" {% if default_frequency == 'week' %}selected{% endif %}>周线</option>
-      <option value="month" {% if default_frequency == 'month' %}selected{% endif %}>月线</option>
+      <option value="day" selected>日线</option>
     </select>
   </div>
   <div class="form-group">
     <label class="form-label">复权</label>
     <select class="form-select" id="adjust">
-      <option value="forward" {% if default_adjust == 'forward' %}selected{% endif %}>前复权</option>
-      <option value="none">不复权</option>
-      <option value="backward">后复权</option>
+      <option value="forward" selected>前复权</option>
     </select>
   </div>
   <div class="form-group">

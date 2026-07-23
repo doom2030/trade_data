@@ -31,10 +31,10 @@ class KlineQueryService:
         end: date,
         adjust: str,
     ) -> KlineResponse:
-        if frequency not in ("day", "week", "month"):
-            raise HTTPException(400, "Invalid frequency")
-        if adjust not in ("none", "forward", "backward"):
-            raise HTTPException(400, "Invalid adjust flag")
+        if frequency != "day":
+            raise HTTPException(400, "Only day frequency is supported")
+        if adjust != "forward":
+            raise HTTPException(400, "Only forward adjust is supported")
         if end < start:
             raise HTTPException(400, "end must be >= start")
 

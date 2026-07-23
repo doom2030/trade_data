@@ -124,7 +124,7 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
     ]
 
-    for table_name in ("kline_day", "kline_week", "kline_month"):
+    for table_name in ("kline_day",):
         op.create_table(
             table_name,
             *kline_cols,
@@ -233,7 +233,7 @@ def downgrade() -> None:
     op.drop_table("quality_check_result")
     op.drop_table("collect_job_item")
     op.drop_table("collect_job")
-    for table_name in ("kline_month", "kline_week", "kline_day"):
+    for table_name in ("kline_day",):
         op.drop_table(table_name)
     op.drop_table("stock_suspension")
     op.drop_table("trade_calendar")
