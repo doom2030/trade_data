@@ -1,7 +1,9 @@
 let priceChart = null;
 let volumeChart = null;
+let turnChart = null;
 let candleSeries = null;
 let volumeSeries = null;
+let turnSeries = null;
 let klineByTime = new Map();
 let syncingCrosshair = false;
 let syncingTimeScale = false;
@@ -19,6 +21,7 @@ const els = {
   chartStatus: document.getElementById('chartStatus'),
   priceChart: document.getElementById('priceChart'),
   volumeChart: document.getElementById('volumeChart'),
+  turnChart: document.getElementById('turnChart'),
   jobStatus: document.getElementById('jobStatus'),
   chartHover: document.getElementById('chartHover'),
 };
@@ -31,7 +34,6 @@ function cssVar(name, fallback) {
 function formatChartDate(time) {
   if (time == null) return '-';
   if (typeof time === 'string') {
-    // API returns YYYY-MM-DD
     return time.replace(/-/g, '/');
   }
   if (typeof time === 'object' && time.year != null) {
@@ -62,6 +64,11 @@ function formatVolume(v) {
   return String(Math.round(n));
 }
 
+function formatTurn(v) {
+  if (v == null || Number.isNaN(Number(v))) return '-';
+  return Number(v).toFixed(2) + '%';
+}
+
 function buildChartTheme() {
   return {
     layout: {
@@ -86,10 +93,13 @@ function buildChartTheme() {
   };
 }
 
+function allCharts() {
+  return [priceChart, volumeChart, turnChart].filter(Boolean);
+}
+
 function applyChartTheme() {
   const theme = buildChartTheme();
-  priceChart?.applyOptions(theme);
-  volumeChart?.applyOptions(theme);
+  for (const chart of allCharts()) chart.applyOptions(theme);
 }
 
 function setStatus(msg, type = '') {
@@ -145,6 +155,7 @@ function showHoverInfo(time) {
     <span><em>低</em>${formatPrice(row.low)}</span>
     <span class="${cls}"><em>收</em>${formatPrice(row.close)}</span>
     <span><em>量</em>${formatVolume(row.volume)}</span>
+    <span><em>换手</em>${formatTurn(row.turn)}</span>
   `;
 }
 
@@ -153,66 +164,61 @@ function rangesEqual(a, b) {
   return a.from === b.from && a.to === b.to;
 }
 
-function syncVisibleRange(source, target) {
-  if (!source || !target || syncingTimeScale) return;
+function syncVisibleRange(source, targets) {
+  if (!source || syncingTimeScale) return;
   const range = source.timeScale().getVisibleLogicalRange();
   if (!range) return;
-  const current = target.timeScale().getVisibleLogicalRange();
-  if (rangesEqual(range, current)) return;
   syncingTimeScale = true;
   try {
-    target.timeScale().setVisibleLogicalRange(range);
+    for (const target of targets) {
+      if (!target || target === source) continue;
+      const current = target.timeScale().getVisibleLogicalRange();
+      if (rangesEqual(range, current)) continue;
+      target.timeScale().setVisibleLogicalRange(range);
+    }
   } catch (_) { /* ignore */ }
   syncingTimeScale = false;
 }
 
-function bindTimeScaleSync() {
-  priceChart.timeScale().subscribeVisibleLogicalRangeChange(() => {
-    syncVisibleRange(priceChart, volumeChart);
-  });
-  volumeChart.timeScale().subscribeVisibleLogicalRangeChange(() => {
-    syncVisibleRange(volumeChart, priceChart);
-  });
+function clearOtherCrosshairs(except) {
+  for (const chart of allCharts()) {
+    if (chart === except) continue;
+    try { chart.clearCrosshairPosition?.(); } catch (_) { /* ignore */ }
+  }
 }
 
-function bindCrosshairSync() {
-  priceChart.subscribeCrosshairMove((param) => {
-    if (syncingCrosshair) return;
-    if (!param || param.time == null || !param.point) {
-      hideHoverInfo();
-      syncingCrosshair = true;
-      try { volumeChart?.clearCrosshairPosition?.(); } catch (_) { /* ignore */ }
-      syncingCrosshair = false;
-      return;
+function setCrosshairsForTime(time, except) {
+  const bar = klineByTime.get(timeKey(time));
+  if (!bar) return;
+  try {
+    if (except !== priceChart && candleSeries) {
+      priceChart.setCrosshairPosition(bar.close ?? 0, time, candleSeries);
     }
-    showHoverInfo(param.time);
-    syncingCrosshair = true;
-    try {
-      if (typeof volumeChart.setCrosshairPosition === 'function' && volumeSeries) {
-        const bar = klineByTime.get(timeKey(param.time));
-        volumeChart.setCrosshairPosition(bar?.volume ?? 0, param.time, volumeSeries);
-      }
-    } catch (_) { /* ignore */ }
-    syncingCrosshair = false;
-  });
+    if (except !== volumeChart && volumeSeries) {
+      volumeChart.setCrosshairPosition(bar.volume ?? 0, time, volumeSeries);
+    }
+    if (except !== turnChart && turnSeries) {
+      turnChart.setCrosshairPosition(bar.turn ?? 0, time, turnSeries);
+    }
+  } catch (_) { /* ignore */ }
+}
 
-  volumeChart.subscribeCrosshairMove((param) => {
+function bindChartInteractions(chart) {
+  chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
+    syncVisibleRange(chart, allCharts());
+  });
+  chart.subscribeCrosshairMove((param) => {
     if (syncingCrosshair) return;
     if (!param || param.time == null || !param.point) {
       hideHoverInfo();
       syncingCrosshair = true;
-      try { priceChart?.clearCrosshairPosition?.(); } catch (_) { /* ignore */ }
+      clearOtherCrosshairs(chart);
       syncingCrosshair = false;
       return;
     }
     showHoverInfo(param.time);
     syncingCrosshair = true;
-    try {
-      if (typeof priceChart.setCrosshairPosition === 'function' && candleSeries) {
-        const bar = klineByTime.get(timeKey(param.time));
-        priceChart.setCrosshairPosition(bar?.close ?? 0, param.time, candleSeries);
-      }
-    } catch (_) { /* ignore */ }
+    setCrosshairsForTime(param.time, chart);
     syncingCrosshair = false;
   });
 }
@@ -225,13 +231,22 @@ function initCharts() {
     borderUpColor: '#34d399', borderDownColor: '#f87171',
     wickUpColor: '#34d399', wickDownColor: '#f87171',
   });
-  volumeChart = LightweightCharts.createChart(els.volumeChart, { ...chartTheme, height: 140 });
+
+  volumeChart = LightweightCharts.createChart(els.volumeChart, { ...chartTheme, height: 120 });
   volumeSeries = volumeChart.addHistogramSeries({ priceFormat: { type: 'volume' }, priceScaleId: '' });
   volumeChart.priceScale('').applyOptions({ scaleMargins: { top: 0.1, bottom: 0 } });
-  // Keep volume x-axis labels; sync range with price chart for pan/zoom.
-  volumeChart.timeScale().applyOptions({ visible: true });
-  bindTimeScaleSync();
-  bindCrosshairSync();
+  volumeChart.timeScale().applyOptions({ visible: false });
+
+  turnChart = LightweightCharts.createChart(els.turnChart, { ...chartTheme, height: 100 });
+  turnSeries = turnChart.addHistogramSeries({
+    priceFormat: { type: 'custom', formatter: (v) => `${Number(v).toFixed(2)}%` },
+    priceScaleId: '',
+    color: 'rgba(96,165,250,0.55)',
+  });
+  turnChart.priceScale('').applyOptions({ scaleMargins: { top: 0.15, bottom: 0 } });
+  turnChart.timeScale().applyOptions({ visible: true });
+
+  for (const chart of allCharts()) bindChartInteractions(chart);
 }
 
 async function loadKlines() {
@@ -259,6 +274,7 @@ async function loadKlines() {
       klineByTime = new Map();
       candleSeries.setData([]);
       volumeSeries.setData([]);
+      turnSeries.setData([]);
       return;
     }
 
@@ -270,6 +286,7 @@ async function loadKlines() {
         low: d.low,
         close: d.close,
         volume: d.volume || 0,
+        turn: d.turn,
       }]),
     );
 
@@ -281,12 +298,20 @@ async function loadKlines() {
       value: d.volume || 0,
       color: d.close >= d.open ? 'rgba(52,211,153,0.4)' : 'rgba(248,113,113,0.4)',
     })));
+    turnSeries.setData(data.items.map(d => ({
+      time: d.time,
+      value: d.turn == null ? 0 : Number(d.turn),
+      color: 'rgba(96,165,250,0.45)',
+    })));
+
     syncingTimeScale = true;
     try {
       priceChart.timeScale().fitContent();
       const range = priceChart.timeScale().getVisibleLogicalRange();
-      if (range) volumeChart.timeScale().setVisibleLogicalRange(range);
-      else volumeChart.timeScale().fitContent();
+      for (const chart of [volumeChart, turnChart]) {
+        if (range) chart.timeScale().setVisibleLogicalRange(range);
+        else chart.timeScale().fitContent();
+      }
     } finally {
       syncingTimeScale = false;
     }

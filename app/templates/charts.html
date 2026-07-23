@@ -6,7 +6,7 @@
 {% block content %}
 <div class="page-header">
   <h2>K 线图表</h2>
-  <p>日线蜡烛图 · 前复权 · 成交量 · 停牌标记 · 手动补采</p>
+  <p>日线蜡烛图 · 前复权 · 成交量 · 换手率 · 停牌标记 · 手动补采</p>
 </div>
 
 <div class="glass-panel chart-toolbar">
@@ -61,6 +61,7 @@
   <div class="chart-hover" id="chartHover" hidden></div>
   <div id="priceChart"></div>
   <div id="volumeChart"></div>
+  <div id="turnChart"></div>
 </div>
 <div id="jobStatus" class="chart-status" style="margin-top:12px"></div>
 {% endblock %}
