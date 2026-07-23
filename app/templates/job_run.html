@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-header">
   <h2>触发任务</h2>
-  <p>手动执行采集、同步、补采与检查任务</p>
+  <p>同步基础数据 · 日线更新 · 单股补采</p>
 </div>
 
 <div class="quick-actions">
@@ -43,25 +43,13 @@
     <input type="hidden" name="sleep_seconds" value="0.35">
     <button type="submit" class="btn btn-primary btn-sm">创建任务</button>
   </form>
-</div>
 
-<div class="stat-grid" style="margin-top:20px">
   <form class="stat-card glass-panel task-card" method="post" action="/jobs/run">
     <input type="hidden" name="action" value="daily_update">
     <div class="stat-label">日线日常更新（前复权）</div>
     <div class="form-group">
       <label class="form-label">交易日</label>
       <input class="form-input" type="date" name="trade_date" value="{{ today }}">
-    </div>
-    <button type="submit" class="btn btn-primary btn-sm">创建任务</button>
-  </form>
-
-  <form class="stat-card glass-panel task-card" method="post" action="/jobs/run">
-    <input type="hidden" name="action" value="catchup_daily_update">
-    <div class="stat-label">缺失交易日补齐</div>
-    <div class="form-group">
-      <label class="form-label">补齐至</label>
-      <input class="form-input" type="date" name="up_to" value="{{ today }}">
     </div>
     <button type="submit" class="btn btn-primary btn-sm">创建任务</button>
   </form>
@@ -85,32 +73,6 @@
       <input class="form-input" type="date" name="end" value="{{ today }}" required>
     </div>
     <button type="submit" class="btn btn-primary">创建补采任务</button>
-  </form>
-</div>
-
-<div class="stat-grid" style="margin-top:20px">
-  <form class="stat-card glass-panel task-card" method="post" action="/jobs/run">
-    <input type="hidden" name="action" value="retry_failed_jobs">
-    <div class="stat-label">批量失败补偿</div>
-    <div class="form-group">
-      <label class="form-label">最大尝试次数</label>
-      <input class="form-input" type="number" name="max_attempts" value="3" min="1" max="20">
-    </div>
-    <div class="form-group">
-      <label class="form-label">最多明细数</label>
-      <input class="form-input" type="number" name="limit" value="500" min="1" max="5000">
-    </div>
-    <button type="submit" class="btn btn-primary btn-sm">创建任务</button>
-  </form>
-
-  <form class="stat-card glass-panel task-card" method="post" action="/jobs/run">
-    <input type="hidden" name="action" value="quality_check">
-    <div class="stat-label">质量检查</div>
-    <div class="form-group">
-      <label class="form-label">任务 ID</label>
-      <input class="form-input" type="number" name="job_id" min="1" required>
-    </div>
-    <button type="submit" class="btn btn-primary btn-sm">创建任务</button>
   </form>
 </div>
 {% endblock %}
