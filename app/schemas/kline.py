@@ -12,6 +12,7 @@ class KlineItemOut(BaseModel):
     volume: float | None = None
     amount: float | None = None
     turn: float | None = None
+    pct_chg: float | None = None
 
 
 class SuspensionOut(BaseModel):

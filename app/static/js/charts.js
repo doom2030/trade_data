@@ -69,6 +69,13 @@ function formatTurn(v) {
   return Number(v).toFixed(2) + '%';
 }
 
+function formatPctChg(v) {
+  if (v == null || Number.isNaN(Number(v))) return '-';
+  const n = Number(v);
+  const sign = n > 0 ? '+' : '';
+  return `${sign}${n.toFixed(2)}%`;
+}
+
 function buildChartTheme() {
   return {
     layout: {
@@ -147,6 +154,10 @@ function showHoverInfo(time) {
   }
   const up = row.close >= row.open;
   const cls = up ? 'up' : 'down';
+  const pct = row.pct_chg;
+  const pctCls = pct == null || Number.isNaN(Number(pct))
+    ? ''
+    : (Number(pct) > 0 ? 'up' : (Number(pct) < 0 ? 'down' : ''));
   els.chartHover.hidden = false;
   els.chartHover.innerHTML = `
     <span class="hover-date">${formatChartDate(row.time)}</span>
@@ -154,6 +165,7 @@ function showHoverInfo(time) {
     <span><em>高</em>${formatPrice(row.high)}</span>
     <span><em>低</em>${formatPrice(row.low)}</span>
     <span class="${cls}"><em>收</em>${formatPrice(row.close)}</span>
+    <span class="${pctCls}"><em>涨跌</em>${formatPctChg(row.pct_chg)}</span>
     <span><em>量</em>${formatVolume(row.volume)}</span>
     <span><em>换手</em>${formatTurn(row.turn)}</span>
   `;
@@ -287,6 +299,7 @@ async function loadKlines() {
         close: d.close,
         volume: d.volume || 0,
         turn: d.turn,
+        pct_chg: d.pct_chg,
       }]),
     );
 

@@ -77,6 +77,7 @@ class KlineQueryService:
                 volume=_to_float(row.volume),
                 amount=_to_float(row.amount),
                 turn=_to_float(row.turn),
+                pct_chg=_to_float(row.pct_chg),
             )
             for row in rows
         ]
