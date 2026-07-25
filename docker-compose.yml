@@ -83,6 +83,20 @@ services:
     networks:
       - trade_data_backend
 
+  scheduler:
+    <<: *app-image
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    command: python scripts/run_scheduler.py
+    networks:
+      - trade_data_backend
+
 volumes:
   trade_data_pgdata:
 

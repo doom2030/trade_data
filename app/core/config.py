@@ -44,6 +44,18 @@ class Settings(BaseSettings):
     admin_password: str = "admin"
     session_max_age_hours: int = 72
 
+    # In-container scheduler (Asia/Shanghai wall clock). Weekdays: 0=Mon … 6=Sun.
+    scheduler_timezone: str = "Asia/Shanghai"
+    scheduler_poll_seconds: int = 30
+    scheduler_daily_update_enabled: bool = True
+    scheduler_daily_update_hour: int = 17
+    scheduler_daily_update_minute: int = 0
+    scheduler_daily_update_weekdays: str = "0,1,2,3,4"
+    scheduler_industry_sync_enabled: bool = True
+    scheduler_industry_sync_hour: int = 20
+    scheduler_industry_sync_minute: int = 0
+    scheduler_industry_sync_weekdays: str = "4"
+
     @property
     def benchmark_symbols(self) -> list[str]:
         return [s.strip() for s in self.trade_calendar_benchmark_symbols.split(",") if s.strip()]

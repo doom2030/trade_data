@@ -53,14 +53,11 @@ trade_data/
 
 ```mermaid
 flowchart TB
-    subgraph scheduler [外部调度]
-        cron[cron / systemd]
-    end
-
     subgraph compose [Docker Compose]
         pg[(PostgreSQL)]
         api[api · FastAPI]
         worker[pending-worker]
+        schedulerSvc[scheduler]
         collector[collector · CLI]
         migrate[migrate · one-shot]
     end
@@ -72,7 +69,8 @@ flowchart TB
 
     browser[浏览器]
 
-    cron -->|run --rm collector| collector
+    schedulerSvc -->|daily_update / industry| bs
+    schedulerSvc --> pg
     migrate -->|alembic upgrade| pg
     collector --> bs
     collector --> pg
@@ -86,14 +84,14 @@ flowchart TB
 
 ```mermaid
 sequenceDiagram
-    participant Cron as cron / 手动脚本
+    participant Sched as scheduler / 手动脚本
     participant CLI as collector CLI
     participant Lock as 全局采集锁
     participant BS as baostock
     participant DB as PostgreSQL
     participant Worker as pending-worker
 
-    Cron->>CLI: daily_update / backfill / retry
+    Sched->>CLI: daily_update / backfill
     CLI->>Lock: 获取锁
     Lock-->>CLI: 成功 / 退出
     CLI->>BS: query_kline / stock_basic
@@ -114,10 +112,11 @@ Internet
                            │
               ┌────────────┼────────────┐
               ▼            ▼            ▼
-         pending-worker  postgres    (collector 按需 run)
-              │            ▲
-              └────────────┘
-         trade_data_backend (bridge)
+    pending-worker   scheduler   postgres
+         │               │           ▲
+         └───────────────┴───────────┘
+              trade_data_backend (bridge)
+         collector 按需 docker compose run
 ```
 
 ## 数据库表
@@ -211,9 +210,10 @@ ruff check .
 | `migrate` | 一次性任务，执行 `alembic upgrade head` |
 | `api` | FastAPI / Uvicorn |
 | `pending-worker` | 循环消费 pending 补采 / 重试任务 |
-| `collector` | 与上述服务**共享同一镜像**，通过 `docker compose run --rm collector` 执行定时脚本 |
+| `scheduler` | 容器内定时：工作日盘后日更、每周行业板块同步 |
+| `collector` | 与上述服务**共享同一镜像**，通过 `docker compose run --rm collector` 执行手动脚本 |
 
-`migrate`、`api`、`collector`、`pending-worker` 共用镜像 `${COMPOSE_PROJECT_NAME}-app`，避免升级后 cron 脚本与 API 代码版本不一致。
+`migrate`、`api`、`collector`、`pending-worker`、`scheduler` 共用镜像 `${COMPOSE_PROJECT_NAME}-app`，避免升级后 cron 脚本与 API 代码版本不一致。
 
 ### 首次部署
 
@@ -304,24 +304,26 @@ docker compose --env-file .env up -d --force-recreate api pending-worker
 curl -s http://127.0.0.1:17070/health | jq .migration
 ```
 
-### 定时任务（cron 示例）
+### 定时任务（容器内 scheduler）
 
-pending 任务由常驻 `pending-worker` 消费；采集脚本通过 cron 触发 `collector` 容器执行。
+日更与行业同步由常驻服务 `scheduler` 触发，**无需再配宿主机 cron**。默认时区 `Asia/Shanghai`：
 
-将 `/path/to/trade_data` 替换为实际路径：
+| 任务 | 默认时间 |
+|------|----------|
+| 日线日常更新（前复权，含 catchup） | 工作日 17:00（`0–4` = 周一至周五） |
+| 同步行业板块 | 周五 20:00 |
 
-```cron
-# 交易日盘后：日更（前复权；含失败补偿、缺失日 catchup；已入库交易日跳过 baostock）
-0 20 * * 1-5 cd /path/to/trade_data && docker compose --env-file .env run --rm collector python scripts/daily_update.py
+相关环境变量见 `.env.example`（`SCHEDULER_*`）。查看日志：
 
-# 失败补偿（日更脚本内也会触发，可按需保留）
-0 21 * * 1-5 cd /path/to/trade_data && docker compose --env-file .env run --rm collector python scripts/retry_failed_jobs.py
+```bash
+docker compose --env-file .env logs -f scheduler
+```
 
-# 每周同步行业板块（同花顺主源，失败自动降级申万二级）
-0 22 * * 5 cd /path/to/trade_data && docker compose --env-file .env run --rm collector python scripts/sync_industry_boards.py
+仍可用手动命令补跑：
 
-# 可选：同步 baostock 证监会行业（对照）
-30 22 * * 5 cd /path/to/trade_data && docker compose --env-file .env run --rm collector python scripts/sync_industry.py
+```bash
+docker compose --env-file .env run --rm collector python scripts/daily_update.py
+docker compose --env-file .env run --rm collector python scripts/sync_industry_boards.py
 ```
 
 ### 手动备份
@@ -503,6 +505,10 @@ K 线响应示例（字段节选）：
 | `API_HOST_PORT` | 宿主机 API 端口 | `17070` |
 | `API_CONTAINER_PORT` | 容器内 uvicorn 端口 | `17070` |
 | `API_HOST_BIND` | 宿主机绑定地址 | `0.0.0.0`（示例；生产可改为 `127.0.0.1`） |
+| `SCHEDULER_TIMEZONE` | 定时任务时区 | `Asia/Shanghai` |
+| `SCHEDULER_DAILY_UPDATE_HOUR` | 日更小时（0–23） | `17` |
+| `SCHEDULER_INDUSTRY_SYNC_HOUR` | 行业同步小时（0–23） | `20` |
+| `SCHEDULER_INDUSTRY_SYNC_WEEKDAYS` | 行业同步星期（0=周一） | `4`（周五） |
 | `SECRET_KEY` | Session 密钥 | **生产必改** |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | 登录账号 | **生产必改** |
 
@@ -529,8 +535,8 @@ K 线响应示例（字段节选）：
 
 ## 常见问题
 
-**Q: 升级代码后 cron 脚本行为异常？**  
-A: 执行 `./scripts/compose_upgrade.sh` 重建共享镜像；`collector` 与 `api` 使用同一 `${COMPOSE_PROJECT_NAME}-app` 镜像。
+**Q: 升级代码后定时任务行为异常？**  
+A: 执行 `./scripts/compose_upgrade.sh` 重建共享镜像；确认 `scheduler` 容器在运行：`docker compose ps`，日志：`docker compose logs -f scheduler`。
 
 **Q: 停机数天后如何补齐日线？**  
 A: `daily_update.py` 会自动检测缺失交易日并创建 `catchup_daily_update` 任务；也可手动运行该脚本。
