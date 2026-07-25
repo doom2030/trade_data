@@ -12,7 +12,13 @@ from collector.baostock_client import BaostockClient
 from collector.collect_lock import acquire_collect_lock, format_lock_contention_message
 from collector.industry_board_sync import sync_industry_boards
 from collector.industry_sync import sync_industry
-from collector.job_helper import append_job_log, finalize_job, mark_stale_running_jobs, set_job_progress
+from collector.job_helper import (
+    append_job_log,
+    fail_interrupted_running_jobs,
+    finalize_job,
+    mark_stale_running_jobs,
+    set_job_progress,
+)
 from collector.kline_sync import collect_kline_item, daily_update_klines, run_catchup_job
 from collector.quality_check import run_quality_check
 from collector.retry_service import apply_retry_outcome, max_attempts_for_item, retry_failed_items
@@ -283,6 +289,24 @@ def run_pending_jobs(session: Session, client: BaostockClient, limit: int) -> in
 def run_loop(sleep_seconds: int = 10, limit: int | None = None):
     limit = limit or settings.pending_job_runner_limit
     logger.info("Starting pending job runner loop (sleep=%ds, limit=%d)", sleep_seconds, limit)
+
+    # After container restart, in-flight "running" jobs are orphans.
+    boot = SessionLocal()
+    try:
+        n = fail_interrupted_running_jobs(
+            boot,
+            grace_seconds=30,
+            reason="Interrupted by pending-worker restart",
+        )
+        boot.commit()
+        if n:
+            logger.warning("Marked %s orphaned running job(s) as failed on startup", n)
+    except Exception:
+        logger.exception("Failed to cleanup orphaned running jobs on startup")
+        boot.rollback()
+    finally:
+        boot.close()
+
     while True:
         session = SessionLocal()
         client = BaostockClient()

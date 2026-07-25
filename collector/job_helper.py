@@ -220,3 +220,37 @@ def mark_stale_running_jobs(session: Session, stale_minutes: int) -> int:
         count += 1
     session.flush()
     return count
+
+
+def fail_interrupted_running_jobs(
+    session: Session,
+    *,
+    grace_seconds: int = 0,
+    reason: str = "Interrupted by process restart",
+) -> int:
+    """Mark orphaned running jobs/items as failed (e.g. after container restart).
+
+    Jobs started within grace_seconds are left alone to avoid racing a just-started run.
+    """
+    now = datetime.now(timezone.utc)
+    jobs = session.scalars(select(CollectJob).where(CollectJob.status == "running")).all()
+    count = 0
+    for job in jobs:
+        if grace_seconds > 0 and job.started_at and (now - job.started_at).total_seconds() < grace_seconds:
+            continue
+        job.status = "failed"
+        job.error_message = reason
+        job.finished_at = now
+        items = session.scalars(
+            select(CollectJobItem).where(
+                CollectJobItem.job_id == job.id,
+                CollectJobItem.status.in_(["pending", "running"]),
+            )
+        ).all()
+        for item in items:
+            item.status = "failed"
+            item.error_message = reason
+            item.finished_at = now
+        count += 1
+    session.flush()
+    return count
