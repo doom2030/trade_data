@@ -5,11 +5,16 @@ let candleSeries = null;
 let volumeSeries = null;
 let turnSeries = null;
 let klineByTime = new Map();
+let spikeDays = [];
 let lastVisibleRange = null;
 let activeTab = 'kline';
 let syncingCrosshair = false;
 let syncingTimeScale = false;
 let chartsReady = false;
+
+/** Spike = value ≥ lookback median × ratio (robust to earlier spikes in the window). */
+const SPIKE_LOOKBACK = 10;
+const SPIKE_RATIO = 2;
 
 const els = {
   symbolSelect: document.getElementById('symbolSelect'),
@@ -77,6 +82,81 @@ function formatPctChg(v) {
   const n = Number(v);
   const sign = n > 0 ? '+' : '';
   return `${sign}${n.toFixed(2)}%`;
+}
+
+function medianOf(values) {
+  if (!values.length) return 0;
+  const sorted = values.slice().sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 0) {
+    return (sorted[mid - 1] + sorted[mid]) / 2;
+  }
+  return sorted[mid];
+}
+
+/**
+ * Detect sudden-increase days vs prior lookback median (not mean).
+ * Median resists earlier spikes in the window, so a later spike day is less likely
+ * to be masked (e.g. day-4 spike won't inflate day-9's baseline as mean would).
+ * Only flags increases (value ≥ baseline × ratio); ignores drops.
+ */
+function detectSpikeFlags(values, { lookback = SPIKE_LOOKBACK, ratio = SPIKE_RATIO } = {}) {
+  const flags = values.map(() => false);
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i];
+    if (v == null || Number.isNaN(v) || v <= 0) continue;
+    const from = Math.max(0, i - lookback);
+    const window = [];
+    for (let j = from; j < i; j++) {
+      const w = values[j];
+      if (w != null && !Number.isNaN(w) && w > 0) window.push(w);
+    }
+    if (window.length < Math.min(3, lookback)) continue;
+    const baseline = medianOf(window);
+    if (baseline <= 0) continue;
+    if (v >= baseline * ratio) flags[i] = true;
+  }
+  return flags;
+}
+
+function spikeLabel(row) {
+  if (!row) return '';
+  if (row.spikeTurn && row.spikeVolume) return '换手·量突增';
+  if (row.spikeTurn) return '换手突增';
+  if (row.spikeVolume) return '量突增';
+  return '';
+}
+
+function clearSpikeMarkers() {
+  try { turnSeries?.setMarkers([]); } catch (_) { /* ignore */ }
+  try { volumeSeries?.setMarkers([]); } catch (_) { /* ignore */ }
+}
+
+function applySpikeMarkers(items, turnFlags, volumeFlags) {
+  const turnMarkers = [];
+  const volumeMarkers = [];
+  for (let i = 0; i < items.length; i++) {
+    if (turnFlags[i]) {
+      turnMarkers.push({
+        time: items[i].time,
+        position: 'aboveBar',
+        color: '#f59e0b',
+        shape: 'circle',
+        text: '突',
+      });
+    }
+    if (volumeFlags[i]) {
+      volumeMarkers.push({
+        time: items[i].time,
+        position: 'aboveBar',
+        color: '#f59e0b',
+        shape: 'arrowUp',
+        text: '突',
+      });
+    }
+  }
+  try { turnSeries.setMarkers(turnMarkers); } catch (_) { /* ignore */ }
+  try { volumeSeries.setMarkers(volumeMarkers); } catch (_) { /* ignore */ }
 }
 
 function buildChartTheme() {
@@ -175,9 +255,11 @@ function showHoverInfo(time) {
     : (Number(pct) > 0 ? 'up' : (Number(pct) < 0 ? 'down' : ''));
 
   if (activeTab === 'flow') {
+    const spike = spikeLabel(row);
     els.chartHover.hidden = false;
     els.chartHover.innerHTML = `
       <span class="hover-date">${formatChartDate(row.time)}</span>
+      ${spike ? `<span class="hover-spike">${spike}</span>` : ''}
       <span><em>换手</em>${formatTurn(row.turn)}</span>
       <span><em>量</em>${formatVolume(row.volume)}</span>
       <span class="${pctCls}"><em>涨跌</em>${formatPctChg(row.pct_chg)}</span>
@@ -384,24 +466,46 @@ async function loadKlines() {
     if (!data.items.length) {
       setStatus('该日期范围内无数据', 'empty');
       klineByTime = new Map();
+      spikeDays = [];
       lastVisibleRange = null;
       candleSeries.setData([]);
       volumeSeries.setData([]);
       turnSeries.setData([]);
+      clearSpikeMarkers();
       return;
     }
 
+    const turnValues = data.items.map((d) => (d.turn == null ? null : Number(d.turn)));
+    const volumeValues = data.items.map((d) => (d.volume == null ? 0 : Number(d.volume)));
+    const turnFlags = detectSpikeFlags(turnValues);
+    const volumeFlags = detectSpikeFlags(volumeValues);
+
+    spikeDays = [];
     klineByTime = new Map(
-      data.items.map((d) => [timeKey(d.time), {
-        time: d.time,
-        open: d.open,
-        high: d.high,
-        low: d.low,
-        close: d.close,
-        volume: d.volume || 0,
-        turn: d.turn,
-        pct_chg: d.pct_chg,
-      }]),
+      data.items.map((d, i) => {
+        const spikeTurn = !!turnFlags[i];
+        const spikeVolume = !!volumeFlags[i];
+        if (spikeTurn || spikeVolume) {
+          spikeDays.push({
+            time: d.time,
+            spikeTurn,
+            spikeVolume,
+            label: spikeLabel({ spikeTurn, spikeVolume }),
+          });
+        }
+        return [timeKey(d.time), {
+          time: d.time,
+          open: d.open,
+          high: d.high,
+          low: d.low,
+          close: d.close,
+          volume: d.volume || 0,
+          turn: d.turn,
+          pct_chg: d.pct_chg,
+          spikeTurn,
+          spikeVolume,
+        }];
+      }),
     );
 
     candleSeries.setData(data.items.map(d => ({
@@ -411,11 +515,22 @@ async function loadKlines() {
       time: d.time,
       value: d.turn == null ? 0 : Number(d.turn),
     })));
-    volumeSeries.setData(data.items.map(d => ({
-      time: d.time,
-      value: d.volume || 0,
-      color: d.close >= d.open ? 'rgba(52,211,153,0.4)' : 'rgba(248,113,113,0.4)',
-    })));
+    volumeSeries.setData(data.items.map((d, i) => {
+      const up = d.close >= d.open;
+      if (volumeFlags[i]) {
+        return {
+          time: d.time,
+          value: d.volume || 0,
+          color: up ? 'rgba(245,158,11,0.85)' : 'rgba(217,119,6,0.85)',
+        };
+      }
+      return {
+        time: d.time,
+        value: d.volume || 0,
+        color: up ? 'rgba(52,211,153,0.4)' : 'rgba(248,113,113,0.4)',
+      };
+    }));
+    applySpikeMarkers(data.items, turnFlags, volumeFlags);
 
     lastVisibleRange = null;
     applyVisibleRange(visibleCharts());
@@ -427,7 +542,12 @@ async function loadKlines() {
       const u = data.suspensions.filter(s => !s.resolved);
       if (u.length) suspMsg = ` · 停牌 ${u.map(s => s.date).join(', ')}`;
     }
-    setStatus(`已加载 ${data.items.length} 条 K 线${suspMsg}`);
+    let spikeMsg = '';
+    if (spikeDays.length) {
+      const dates = spikeDays.map((s) => formatChartDate(s.time)).join('、');
+      spikeMsg = ` · 突增异常 ${spikeDays.length} 天：${dates}`;
+    }
+    setStatus(`已加载 ${data.items.length} 条 K 线${spikeMsg}${suspMsg}`);
   } catch (e) {
     setStatus('加载失败: ' + e.message, 'error');
   }

@@ -6,7 +6,7 @@
 {% block content %}
 <div class="page-header">
   <h2>K 线图表</h2>
-  <p>日线蜡烛图 · 前复权 · 换手 / 成交量联动 · 涨跌幅 · 停牌标记 · 手动补采</p>
+  <p>日线蜡烛图 · 前复权 · 换手 / 成交量联动 · 突增异常点 · 涨跌幅 · 停牌标记 · 手动补采</p>
 </div>
 
 <div class="glass-panel chart-toolbar">
@@ -68,9 +68,9 @@
     <div id="priceChart"></div>
   </div>
   <div class="chart-panel" data-panel="flow" role="tabpanel" hidden>
-    <div class="chart-pane-label">换手率</div>
+    <div class="chart-pane-label">换手率 · 相对近 10 日中位数 ≥2 倍标为突增</div>
     <div id="turnChart"></div>
-    <div class="chart-pane-label">成交量</div>
+    <div class="chart-pane-label">成交量 · 橙色柱 / 标记为突增日</div>
     <div id="volumeChart"></div>
   </div>
 </div>
