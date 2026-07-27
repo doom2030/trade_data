@@ -5,8 +5,11 @@ let candleSeries = null;
 let volumeSeries = null;
 let turnSeries = null;
 let klineByTime = new Map();
+let lastVisibleRange = null;
+let activeTab = 'kline';
 let syncingCrosshair = false;
 let syncingTimeScale = false;
+let chartsReady = false;
 
 const els = {
   symbolSelect: document.getElementById('symbolSelect'),
@@ -100,8 +103,20 @@ function buildChartTheme() {
   };
 }
 
+function klineCharts() {
+  return [priceChart].filter(Boolean);
+}
+
+function flowCharts() {
+  return [turnChart, volumeChart].filter(Boolean);
+}
+
+function visibleCharts() {
+  return activeTab === 'flow' ? flowCharts() : klineCharts();
+}
+
 function allCharts() {
-  return [priceChart, volumeChart, turnChart].filter(Boolean);
+  return [...klineCharts(), ...flowCharts()];
 }
 
 function applyChartTheme() {
@@ -158,6 +173,19 @@ function showHoverInfo(time) {
   const pctCls = pct == null || Number.isNaN(Number(pct))
     ? ''
     : (Number(pct) > 0 ? 'up' : (Number(pct) < 0 ? 'down' : ''));
+
+  if (activeTab === 'flow') {
+    els.chartHover.hidden = false;
+    els.chartHover.innerHTML = `
+      <span class="hover-date">${formatChartDate(row.time)}</span>
+      <span><em>换手</em>${formatTurn(row.turn)}</span>
+      <span><em>量</em>${formatVolume(row.volume)}</span>
+      <span class="${pctCls}"><em>涨跌</em>${formatPctChg(row.pct_chg)}</span>
+      <span class="${cls}"><em>收</em>${formatPrice(row.close)}</span>
+    `;
+    return;
+  }
+
   els.chartHover.hidden = false;
   els.chartHover.innerHTML = `
     <span class="hover-date">${formatChartDate(row.time)}</span>
@@ -180,6 +208,7 @@ function syncVisibleRange(source, targets) {
   if (!source || syncingTimeScale) return;
   const range = source.timeScale().getVisibleLogicalRange();
   if (!range) return;
+  lastVisibleRange = range;
   syncingTimeScale = true;
   try {
     for (const target of targets) {
@@ -192,8 +221,31 @@ function syncVisibleRange(source, targets) {
   syncingTimeScale = false;
 }
 
-function clearOtherCrosshairs(except) {
-  for (const chart of allCharts()) {
+function applyVisibleRange(charts) {
+  if (!charts.length) return;
+  syncingTimeScale = true;
+  try {
+    if (lastVisibleRange) {
+      for (const chart of charts) {
+        try { chart.timeScale().setVisibleLogicalRange(lastVisibleRange); } catch (_) { /* ignore */ }
+      }
+    } else {
+      charts[0].timeScale().fitContent();
+      const range = charts[0].timeScale().getVisibleLogicalRange();
+      lastVisibleRange = range;
+      if (range) {
+        for (const chart of charts.slice(1)) {
+          try { chart.timeScale().setVisibleLogicalRange(range); } catch (_) { /* ignore */ }
+        }
+      }
+    }
+  } finally {
+    syncingTimeScale = false;
+  }
+}
+
+function clearOtherCrosshairs(except, charts) {
+  for (const chart of charts) {
     if (chart === except) continue;
     try { chart.clearCrosshairPosition?.(); } catch (_) { /* ignore */ }
   }
@@ -203,28 +255,32 @@ function setCrosshairsForTime(time, except) {
   const bar = klineByTime.get(timeKey(time));
   if (!bar) return;
   try {
-    if (except !== priceChart && candleSeries) {
-      priceChart.setCrosshairPosition(bar.close ?? 0, time, candleSeries);
-    }
-    if (except !== volumeChart && volumeSeries) {
-      volumeChart.setCrosshairPosition(bar.volume ?? 0, time, volumeSeries);
+    if (activeTab === 'kline') {
+      if (except !== priceChart && candleSeries) {
+        priceChart.setCrosshairPosition(bar.close ?? 0, time, candleSeries);
+      }
+      return;
     }
     if (except !== turnChart && turnSeries) {
       turnChart.setCrosshairPosition(bar.turn ?? 0, time, turnSeries);
     }
+    if (except !== volumeChart && volumeSeries) {
+      volumeChart.setCrosshairPosition(bar.volume ?? 0, time, volumeSeries);
+    }
   } catch (_) { /* ignore */ }
 }
 
-function bindChartInteractions(chart) {
+function bindChartInteractions(chart, groupFn) {
   chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
-    syncVisibleRange(chart, allCharts());
+    syncVisibleRange(chart, groupFn());
   });
   chart.subscribeCrosshairMove((param) => {
     if (syncingCrosshair) return;
+    const group = groupFn();
     if (!param || param.time == null || !param.point) {
       hideHoverInfo();
       syncingCrosshair = true;
-      clearOtherCrosshairs(chart);
+      clearOtherCrosshairs(chart, group);
       syncingCrosshair = false;
       return;
     }
@@ -237,28 +293,72 @@ function bindChartInteractions(chart) {
 
 function initCharts() {
   const chartTheme = buildChartTheme();
-  priceChart = LightweightCharts.createChart(els.priceChart, { ...chartTheme, height: 420 });
+  priceChart = LightweightCharts.createChart(els.priceChart, { ...chartTheme, height: 480 });
   candleSeries = priceChart.addCandlestickSeries({
     upColor: '#34d399', downColor: '#f87171',
     borderUpColor: '#34d399', borderDownColor: '#f87171',
     wickUpColor: '#34d399', wickDownColor: '#f87171',
   });
+  bindChartInteractions(priceChart, klineCharts);
 
-  volumeChart = LightweightCharts.createChart(els.volumeChart, { ...chartTheme, height: 120 });
-  volumeSeries = volumeChart.addHistogramSeries({ priceFormat: { type: 'volume' }, priceScaleId: '' });
-  volumeChart.priceScale('').applyOptions({ scaleMargins: { top: 0.1, bottom: 0 } });
-  volumeChart.timeScale().applyOptions({ visible: false });
-
-  turnChart = LightweightCharts.createChart(els.turnChart, { ...chartTheme, height: 100 });
-  turnSeries = turnChart.addHistogramSeries({
+  // Flow tab charts live in a hidden panel; create after first reveal or now and resize later.
+  turnChart = LightweightCharts.createChart(els.turnChart, { ...chartTheme, height: 220 });
+  turnSeries = turnChart.addLineSeries({
+    color: '#60a5fa',
+    lineWidth: 2,
     priceFormat: { type: 'custom', formatter: (v) => `${Number(v).toFixed(2)}%` },
-    priceScaleId: '',
-    color: 'rgba(96,165,250,0.55)',
   });
-  turnChart.priceScale('').applyOptions({ scaleMargins: { top: 0.15, bottom: 0 } });
-  turnChart.timeScale().applyOptions({ visible: true });
+  turnChart.timeScale().applyOptions({ visible: false });
+  bindChartInteractions(turnChart, flowCharts);
 
-  for (const chart of allCharts()) bindChartInteractions(chart);
+  volumeChart = LightweightCharts.createChart(els.volumeChart, { ...chartTheme, height: 200 });
+  volumeSeries = volumeChart.addHistogramSeries({
+    priceFormat: { type: 'volume' },
+    priceScaleId: '',
+  });
+  volumeChart.priceScale('').applyOptions({ scaleMargins: { top: 0.1, bottom: 0 } });
+  volumeChart.timeScale().applyOptions({ visible: true });
+  bindChartInteractions(volumeChart, flowCharts);
+
+  chartsReady = true;
+}
+
+function resizeVisibleCharts() {
+  requestAnimationFrame(() => {
+    for (const chart of visibleCharts()) {
+      try { chart.timeScale().applyOptions({}); } catch (_) { /* ignore */ }
+      // Lightweight Charts picks up container size on next frame after unhide.
+      const el = chart === priceChart
+        ? els.priceChart
+        : (chart === turnChart ? els.turnChart : els.volumeChart);
+      if (el) {
+        chart.applyOptions({
+          width: el.clientWidth,
+          height: el.clientHeight || (chart === priceChart ? 480 : (chart === turnChart ? 220 : 200)),
+        });
+      }
+    }
+    applyVisibleRange(visibleCharts());
+  });
+}
+
+function switchTab(tab) {
+  if (tab !== 'kline' && tab !== 'flow') return;
+  activeTab = tab;
+
+  document.querySelectorAll('.chart-tab').forEach((btn) => {
+    const on = btn.dataset.tab === tab;
+    btn.classList.toggle('active', on);
+    btn.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
+  document.querySelectorAll('.chart-panel').forEach((panel) => {
+    const on = panel.dataset.panel === tab;
+    panel.classList.toggle('active', on);
+    panel.hidden = !on;
+  });
+
+  hideHoverInfo();
+  resizeVisibleCharts();
 }
 
 async function loadKlines() {
@@ -284,6 +384,7 @@ async function loadKlines() {
     if (!data.items.length) {
       setStatus('该日期范围内无数据', 'empty');
       klineByTime = new Map();
+      lastVisibleRange = null;
       candleSeries.setData([]);
       volumeSeries.setData([]);
       turnSeries.setData([]);
@@ -306,28 +407,20 @@ async function loadKlines() {
     candleSeries.setData(data.items.map(d => ({
       time: d.time, open: d.open, high: d.high, low: d.low, close: d.close,
     })));
+    turnSeries.setData(data.items.map(d => ({
+      time: d.time,
+      value: d.turn == null ? 0 : Number(d.turn),
+    })));
     volumeSeries.setData(data.items.map(d => ({
       time: d.time,
       value: d.volume || 0,
       color: d.close >= d.open ? 'rgba(52,211,153,0.4)' : 'rgba(248,113,113,0.4)',
     })));
-    turnSeries.setData(data.items.map(d => ({
-      time: d.time,
-      value: d.turn == null ? 0 : Number(d.turn),
-      color: 'rgba(96,165,250,0.45)',
-    })));
 
-    syncingTimeScale = true;
-    try {
-      priceChart.timeScale().fitContent();
-      const range = priceChart.timeScale().getVisibleLogicalRange();
-      for (const chart of [volumeChart, turnChart]) {
-        if (range) chart.timeScale().setVisibleLogicalRange(range);
-        else chart.timeScale().fitContent();
-      }
-    } finally {
-      syncingTimeScale = false;
-    }
+    lastVisibleRange = null;
+    applyVisibleRange(visibleCharts());
+    // Keep the other tab's charts aligned for when user switches.
+    applyVisibleRange(activeTab === 'kline' ? flowCharts() : klineCharts());
 
     let suspMsg = '';
     if (data.suspensions?.length) {
@@ -391,6 +484,10 @@ function openDatePicker(input) {
   }
 }
 
+document.querySelectorAll('.chart-tab').forEach((btn) => {
+  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+});
+
 els.loadBtn?.addEventListener('click', loadKlines);
 els.backfillBtn?.addEventListener('click', backfill);
 els.symbolSelect?.addEventListener('change', updateStockInfo);
@@ -407,6 +504,9 @@ els.includeExcluded?.addEventListener('change', () => {
 });
 
 window.addEventListener('themechange', applyChartTheme);
+window.addEventListener('resize', () => {
+  if (chartsReady) resizeVisibleCharts();
+});
 
 if (typeof LightweightCharts !== 'undefined') {
   initCharts();

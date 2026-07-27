@@ -6,7 +6,7 @@
 {% block content %}
 <div class="page-header">
   <h2>K 线图表</h2>
-  <p>日线蜡烛图 · 前复权 · 成交量 · 换手率 · 涨跌幅 · 停牌标记 · 手动补采</p>
+  <p>日线蜡烛图 · 前复权 · 换手 / 成交量联动 · 涨跌幅 · 停牌标记 · 手动补采</p>
 </div>
 
 <div class="glass-panel chart-toolbar">
@@ -56,12 +56,23 @@
 </div>
 
 <div class="glass-panel chart-container">
+  <div class="chart-tabs" role="tablist" aria-label="图表视图">
+    <button type="button" class="chart-tab active" role="tab" aria-selected="true" data-tab="kline">K 线图</button>
+    <button type="button" class="chart-tab" role="tab" aria-selected="false" data-tab="flow">换手 · 成交量</button>
+  </div>
   <div class="stock-info-bar" id="stockInfo"></div>
   <div class="chart-status" id="chartStatus">选择股票并点击加载</div>
   <div class="chart-hover" id="chartHover" hidden></div>
-  <div id="priceChart"></div>
-  <div id="volumeChart"></div>
-  <div id="turnChart"></div>
+
+  <div class="chart-panel active" data-panel="kline" role="tabpanel">
+    <div id="priceChart"></div>
+  </div>
+  <div class="chart-panel" data-panel="flow" role="tabpanel" hidden>
+    <div class="chart-pane-label">换手率</div>
+    <div id="turnChart"></div>
+    <div class="chart-pane-label">成交量</div>
+    <div id="volumeChart"></div>
+  </div>
 </div>
 <div id="jobStatus" class="chart-status" style="margin-top:12px"></div>
 {% endblock %}
