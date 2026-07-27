@@ -6,25 +6,20 @@ import logging
 from dataclasses import dataclass
 from datetime import date
 
-from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.models import CollectJob
 from collector.baostock_client import BaostockClient
 from collector.collect_lock import acquire_collect_lock, format_lock_contention_message
 from collector.job_helper import append_job_log
 from collector.kline_sync import (
-    create_catchup_jobs,
     daily_update_klines,
-    get_missed_trading_days,
     is_trading_day,
 )
 from collector.quality_check import run_quality_check
-from collector.retry_service import retry_failed_items
 from collector.stock_meta_sync import sync_stock_meta
 from collector.trade_calendar_sync import ensure_trade_calendar_for_date
 
 logger = logging.getLogger(__name__)
-settings = get_settings()
 
 
 @dataclass
@@ -46,7 +41,10 @@ def format_job_summary(job: CollectJob) -> str:
 
 
 def run_daily_update(trade_date: date | None = None) -> DailyUpdateResult:
-    """Run calendar ensure, catchup enqueue, meta sync, day kline update, quality check."""
+    """Run calendar ensure, meta sync, day kline update, quality check.
+
+    Catchup / batch retry are not auto-enqueued here; run them manually if needed.
+    """
     target = trade_date or date.today()
     session = SessionLocal()
     client = BaostockClient()
@@ -75,22 +73,6 @@ def run_daily_update(trade_date: date | None = None) -> DailyUpdateResult:
                     non_trading_day=True,
                     job=job,
                     message=summary,
-                )
-
-            retry_failed_items(
-                session,
-                client,
-                settings.failed_job_max_attempts,
-                settings.failed_job_retry_limit,
-            )
-
-            missed = get_missed_trading_days(session, target)
-            if missed:
-                job_ids = create_catchup_jobs(session, missed)
-                logger.info(
-                    "Created %s catchup jobs for %s missed days",
-                    len(job_ids),
-                    len(missed),
                 )
 
             sync_stock_meta(session, client, target)

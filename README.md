@@ -310,7 +310,7 @@ curl -s http://127.0.0.1:17070/health | jq .migration
 
 | 任务 | 默认时间 |
 |------|----------|
-| 日线日常更新（前复权，含 catchup） | 工作日 17:00（`0–4` = 周一至周五） |
+| 日线日常更新（前复权） | 工作日 17:00（`0–4` = 周一至周五） |
 | 同步行业板块 | 周五 20:00 |
 
 相关环境变量见 `.env.example`（`SCHEDULER_*`）。查看日志：
@@ -359,7 +359,7 @@ docker compose --env-file .env cp postgres:/tmp/trade_data.dump ./backups/trade_
 | `scripts/sync_industry.py` | 同步 baostock 证监会行业（对照） |
 | `scripts/sync_trade_calendar.py` | 一次性同步交易日历（默认从历史起始日到下一年年底，失败后可重跑） |
 | `scripts/backfill_kline.py` | 历史日 K 回填（默认前复权；`--skip-existing` 默认开启） |
-| `scripts/daily_update.py` | 日线增量（含 catchup、元数据同步） |
+| `scripts/daily_update.py` | 日线增量（日历、元数据同步、当日日更） |
 | `scripts/retry_failed_jobs.py` | 批量重试失败明细 |
 | `scripts/run_pending_jobs.py` | 消费 pending 任务（worker 内使用） |
 
@@ -539,7 +539,7 @@ K 线响应示例（字段节选）：
 A: 执行 `./scripts/compose_upgrade.sh` 重建共享镜像；确认 `scheduler` 容器在运行：`docker compose ps`，日志：`docker compose logs -f scheduler`。
 
 **Q: 停机数天后如何补齐日线？**  
-A: `daily_update.py` 会自动检测缺失交易日并创建 `catchup_daily_update` 任务；也可手动运行该脚本。
+A: 日更不再自动创建 catchup。可手动跑 `scripts/daily_update.py --trade-date YYYY-MM-DD` 补指定日，或用 `scripts/backfill_kline.py` 回填区间；也可在任务页触发缺失交易日补齐。
 
 **Q: 如何只对单只股票补历史数据？**  
 A: `docker compose run --rm collector python scripts/backfill_kline.py --symbol sh.600519 --start-date 2024-01-01 --end-date 2024-12-31`
