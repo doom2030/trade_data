@@ -11,6 +11,9 @@ let activeTab = 'kline';
 let syncingCrosshair = false;
 let syncingTimeScale = false;
 let chartsReady = false;
+let flowChartsReady = false;
+/** @type {null | { turnData: any[], volumeData: any[], items: any[], turnFlags: boolean[], volumeFlags: boolean[] }} */
+let pendingFlowData = null;
 
 /** Spike = value ≥ lookback median × ratio (robust to earlier spikes in the window). */
 const SPIKE_LOOKBACK = 10;
@@ -373,7 +376,7 @@ function bindChartInteractions(chart, groupFn) {
   });
 }
 
-function initCharts() {
+function initPriceChart() {
   const chartTheme = buildChartTheme();
   priceChart = LightweightCharts.createChart(els.priceChart, { ...chartTheme, height: 480 });
   candleSeries = priceChart.addCandlestickSeries({
@@ -382,8 +385,13 @@ function initCharts() {
     wickUpColor: '#34d399', wickDownColor: '#f87171',
   });
   bindChartInteractions(priceChart, klineCharts);
+  chartsReady = true;
+}
 
-  // Flow tab charts live in a hidden panel; create after first reveal or now and resize later.
+function ensureFlowCharts() {
+  if (flowChartsReady || typeof LightweightCharts === 'undefined') return;
+  const chartTheme = buildChartTheme();
+
   turnChart = LightweightCharts.createChart(els.turnChart, { ...chartTheme, height: 220 });
   turnSeries = turnChart.addLineSeries({
     color: '#60a5fa',
@@ -402,30 +410,46 @@ function initCharts() {
   volumeChart.timeScale().applyOptions({ visible: true });
   bindChartInteractions(volumeChart, flowCharts);
 
-  chartsReady = true;
+  flowChartsReady = true;
+  if (pendingFlowData) {
+    applyFlowSeriesData(pendingFlowData);
+    pendingFlowData = null;
+  }
+}
+
+function applyFlowSeriesData({ turnData, volumeData, items, turnFlags, volumeFlags }) {
+  if (!flowChartsReady) {
+    pendingFlowData = { turnData, volumeData, items, turnFlags, volumeFlags };
+    return;
+  }
+  turnSeries.setData(turnData);
+  volumeSeries.setData(volumeData);
+  applySpikeMarkers(items, turnFlags, volumeFlags);
 }
 
 function resizeVisibleCharts() {
   requestAnimationFrame(() => {
-    for (const chart of visibleCharts()) {
-      try { chart.timeScale().applyOptions({}); } catch (_) { /* ignore */ }
-      // Lightweight Charts picks up container size on next frame after unhide.
-      const el = chart === priceChart
-        ? els.priceChart
-        : (chart === turnChart ? els.turnChart : els.volumeChart);
-      if (el) {
-        chart.applyOptions({
-          width: el.clientWidth,
-          height: el.clientHeight || (chart === priceChart ? 480 : (chart === turnChart ? 220 : 200)),
-        });
+    requestAnimationFrame(() => {
+      for (const chart of visibleCharts()) {
+        const el = chart === priceChart
+          ? els.priceChart
+          : (chart === turnChart ? els.turnChart : els.volumeChart);
+        if (!el) continue;
+        const width = el.clientWidth;
+        const height = el.clientHeight
+          || (chart === priceChart ? 480 : (chart === turnChart ? 220 : 200));
+        if (width > 0) {
+          chart.applyOptions({ width, height });
+        }
       }
-    }
-    applyVisibleRange(visibleCharts());
+      applyVisibleRange(visibleCharts());
+    });
   });
 }
 
 function switchTab(tab) {
   if (tab !== 'kline' && tab !== 'flow') return;
+
   activeTab = tab;
 
   document.querySelectorAll('.chart-tab').forEach((btn) => {
@@ -435,11 +459,13 @@ function switchTab(tab) {
   });
   document.querySelectorAll('.chart-panel').forEach((panel) => {
     const on = panel.dataset.panel === tab;
-    panel.classList.toggle('active', on);
-    panel.hidden = !on;
+    panel.classList.toggle('is-active', on);
+    if (on) panel.removeAttribute('hidden');
+    else panel.setAttribute('hidden', '');
   });
 
   hideHoverInfo();
+  if (tab === 'flow') ensureFlowCharts();
   resizeVisibleCharts();
 }
 
@@ -467,11 +493,14 @@ async function loadKlines() {
       setStatus('该日期范围内无数据', 'empty');
       klineByTime = new Map();
       spikeDays = [];
+      pendingFlowData = null;
       lastVisibleRange = null;
       candleSeries.setData([]);
-      volumeSeries.setData([]);
-      turnSeries.setData([]);
-      clearSpikeMarkers();
+      if (flowChartsReady) {
+        volumeSeries.setData([]);
+        turnSeries.setData([]);
+        clearSpikeMarkers();
+      }
       return;
     }
 
@@ -511,11 +540,12 @@ async function loadKlines() {
     candleSeries.setData(data.items.map(d => ({
       time: d.time, open: d.open, high: d.high, low: d.low, close: d.close,
     })));
-    turnSeries.setData(data.items.map(d => ({
+
+    const turnData = data.items.map(d => ({
       time: d.time,
       value: d.turn == null ? 0 : Number(d.turn),
-    })));
-    volumeSeries.setData(data.items.map((d, i) => {
+    }));
+    const volumeData = data.items.map((d, i) => {
       const up = d.close >= d.open;
       if (volumeFlags[i]) {
         return {
@@ -529,13 +559,20 @@ async function loadKlines() {
         value: d.volume || 0,
         color: up ? 'rgba(52,211,153,0.4)' : 'rgba(248,113,113,0.4)',
       };
-    }));
-    applySpikeMarkers(data.items, turnFlags, volumeFlags);
+    });
+    applyFlowSeriesData({
+      turnData,
+      volumeData,
+      items: data.items,
+      turnFlags,
+      volumeFlags,
+    });
 
     lastVisibleRange = null;
     applyVisibleRange(visibleCharts());
-    // Keep the other tab's charts aligned for when user switches.
-    applyVisibleRange(activeTab === 'kline' ? flowCharts() : klineCharts());
+    if (flowChartsReady) {
+      applyVisibleRange(activeTab === 'kline' ? flowCharts() : klineCharts());
+    }
 
     let suspMsg = '';
     if (data.suspensions?.length) {
@@ -604,8 +641,11 @@ function openDatePicker(input) {
   }
 }
 
-document.querySelectorAll('.chart-tab').forEach((btn) => {
-  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+document.getElementById('chartTabs')?.addEventListener('click', (event) => {
+  const btn = event.target.closest('.chart-tab');
+  if (!btn) return;
+  event.preventDefault();
+  switchTab(btn.dataset.tab);
 });
 
 els.loadBtn?.addEventListener('click', loadKlines);
@@ -629,7 +669,7 @@ window.addEventListener('resize', () => {
 });
 
 if (typeof LightweightCharts !== 'undefined') {
-  initCharts();
+  initPriceChart();
   updateStockInfo();
   if (window.CHART_CONFIG?.defaultSymbol) loadKlines();
 }

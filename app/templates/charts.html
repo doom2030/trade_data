@@ -55,16 +55,17 @@
   <button class="btn btn-secondary" id="backfillBtn">补采</button>
 </div>
 
+<nav class="chart-tabs glass-panel" id="chartTabs" role="tablist" aria-label="图表视图">
+  <button type="button" class="chart-tab active" role="tab" aria-selected="true" data-tab="kline">K 线图</button>
+  <button type="button" class="chart-tab" role="tab" aria-selected="false" data-tab="flow">换手 · 成交量</button>
+</nav>
+
 <div class="glass-panel chart-container">
-  <div class="chart-tabs" role="tablist" aria-label="图表视图">
-    <button type="button" class="chart-tab active" role="tab" aria-selected="true" data-tab="kline">K 线图</button>
-    <button type="button" class="chart-tab" role="tab" aria-selected="false" data-tab="flow">换手 · 成交量</button>
-  </div>
   <div class="stock-info-bar" id="stockInfo"></div>
   <div class="chart-status" id="chartStatus">选择股票并点击加载</div>
   <div class="chart-hover" id="chartHover" hidden></div>
 
-  <div class="chart-panel active" data-panel="kline" role="tabpanel">
+  <div class="chart-panel is-active" data-panel="kline" role="tabpanel">
     <div id="priceChart"></div>
   </div>
   <div class="chart-panel" data-panel="flow" role="tabpanel" hidden>
@@ -83,5 +84,5 @@
     defaultSymbol: "{{ default_symbol or '' }}",
   };
 </script>
-<script src="/static/js/charts.js"></script>
+<script src="/static/js/charts.js?v=3"></script>
 {% endblock %}
