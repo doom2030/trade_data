@@ -6,11 +6,10 @@
 {% block content %}
 <div class="page-header">
   <h2>K 线图表</h2>
-  <p>日线蜡烛图 · 前复权 · 换手 / 成交量联动 · 突增异常点 · 涨跌幅 · 停牌标记 · 手动补采</p>
 </div>
 
 <div class="glass-panel chart-toolbar">
-  <div class="form-group" style="min-width:200px">
+  <div class="form-group chart-toolbar-symbol">
     <label class="form-label">股票</label>
     <select class="form-select" id="symbolSelect">
       {% for s in symbols %}
@@ -28,31 +27,30 @@
       {% endfor %}
     </select>
   </div>
-  <div class="form-group">
+  <div class="form-group chart-toolbar-period">
     <label class="form-label">周期</label>
     <select class="form-select" id="frequency">
       <option value="day" selected>日线</option>
     </select>
   </div>
-  <div class="form-group">
+  <div class="form-group chart-toolbar-adjust">
     <label class="form-label">复权</label>
     <select class="form-select" id="adjust">
       <option value="forward" selected>前复权</option>
     </select>
   </div>
-  <div class="form-group">
+  <div class="form-group chart-toolbar-date">
     <label class="form-label">起始</label>
     <input class="form-input" type="date" id="startDate" value="{{ default_start }}">
   </div>
-  <div class="form-group">
+  <div class="form-group chart-toolbar-date">
     <label class="form-label">结束</label>
     <input class="form-input" type="date" id="endDate" value="{{ default_end }}">
   </div>
-  <label class="checkbox-label" style="padding-bottom:12px">
+  <label class="checkbox-label">
     <input type="checkbox" id="includeExcluded" {% if include_excluded %}checked{% endif %}> 包含已排除
   </label>
   <button class="btn btn-primary" id="loadBtn">加载</button>
-  <button class="btn btn-secondary" id="backfillBtn">补采</button>
 </div>
 
 <nav class="chart-tabs glass-panel" id="chartTabs" role="tablist" aria-label="图表视图">
@@ -84,5 +82,5 @@
     defaultSymbol: "{{ default_symbol or '' }}",
   };
 </script>
-<script src="/static/js/charts.js?v=3"></script>
+<script src="/static/js/charts.js?v=4"></script>
 {% endblock %}

@@ -27,7 +27,6 @@ const els = {
   endDate: document.getElementById('endDate'),
   includeExcluded: document.getElementById('includeExcluded'),
   loadBtn: document.getElementById('loadBtn'),
-  backfillBtn: document.getElementById('backfillBtn'),
   stockInfo: document.getElementById('stockInfo'),
   chartStatus: document.getElementById('chartStatus'),
   priceChart: document.getElementById('priceChart'),
@@ -225,7 +224,6 @@ function updateStockInfo() {
     <div><span class="label">状态</span><span class="value">${statusLabel}</span></div>
     <div><span class="label">行业</span><span class="value">${industry || '-'}</span></div>
   `;
-  els.backfillBtn.style.display = status === 'active' ? 'inline-flex' : 'none';
 }
 
 function timeKey(time) {
@@ -590,36 +588,6 @@ async function loadKlines() {
   }
 }
 
-async function backfill() {
-  const opt = els.symbolSelect.selectedOptions[0];
-  if (!opt || opt.dataset.status !== 'active') {
-    setStatus('只能对 active 股票补采', 'error');
-    return;
-  }
-  setStatus('创建补采任务...', 'loading');
-  try {
-    const resp = await fetch('/api/klines/backfill', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        symbol: els.symbolSelect.value,
-        frequency: els.frequency.value,
-        start: els.startDate.value,
-        end: els.endDate.value,
-      }),
-    });
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      throw new Error(typeof err.detail === 'string' ? err.detail : resp.statusText);
-    }
-    const data = await resp.json();
-    els.jobStatus.textContent = `补采任务 #${data.job_id} 已创建 (${data.status})`;
-    window.location.href = `/jobs/${data.job_id}?message=补采任务已创建`;
-  } catch (e) {
-    setStatus('补采失败: ' + e.message, 'error');
-  }
-}
-
 function toISODate(d) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -649,7 +617,6 @@ document.getElementById('chartTabs')?.addEventListener('click', (event) => {
 });
 
 els.loadBtn?.addEventListener('click', loadKlines);
-els.backfillBtn?.addEventListener('click', backfill);
 els.symbolSelect?.addEventListener('change', updateStockInfo);
 els.frequency?.addEventListener('change', () => {
   const range = defaultRangeForFrequency(els.frequency.value);
