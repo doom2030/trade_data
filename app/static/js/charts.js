@@ -637,7 +637,7 @@ function toISODate(d) {
 function defaultRangeForFrequency(_freq) {
   const end = new Date();
   const start = new Date(end);
-  start.setDate(start.getDate() - 30);
+  start.setDate(start.getDate() - 90);
   return { start: toISODate(start), end: toISODate(end) };
 }
 

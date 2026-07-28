@@ -65,8 +65,8 @@ def charts_page(
 ):
     symbols = SymbolQueryService(db).query_symbols(include_excluded=include_excluded)
     today = date.today()
-    # Day-line default window: last 30 calendar days.
-    default_start = (today - timedelta(days=30)).isoformat()
+    # Day-line default window: last ~3 months.
+    default_start = (today - timedelta(days=90)).isoformat()
     default_end = today.isoformat()
     default_symbol = symbol or (symbols[0].symbol if symbols else "")
 
