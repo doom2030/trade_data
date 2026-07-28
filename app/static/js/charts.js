@@ -316,17 +316,47 @@ function applyVisibleRange(charts) {
         try { chart.timeScale().setVisibleLogicalRange(lastVisibleRange); } catch (_) { /* ignore */ }
       }
     } else {
-      charts[0].timeScale().fitContent();
-      const range = charts[0].timeScale().getVisibleLogicalRange();
-      lastVisibleRange = range;
-      if (range) {
-        for (const chart of charts.slice(1)) {
-          try { chart.timeScale().setVisibleLogicalRange(range); } catch (_) { /* ignore */ }
-        }
-      }
+      fitChartsToWidth(charts);
     }
   } finally {
     syncingTimeScale = false;
+  }
+}
+
+function fitChartsToWidth(charts) {
+  if (!charts.length) return;
+  const wasSyncing = syncingTimeScale;
+  syncingTimeScale = true;
+  try {
+    for (const chart of charts) {
+      try {
+        chart.timeScale().applyOptions({
+          rightOffset: 0,
+          fixLeftEdge: true,
+          fixRightEdge: true,
+        });
+        chart.timeScale().fitContent();
+      } catch (_) { /* ignore */ }
+    }
+    const range = charts[0].timeScale().getVisibleLogicalRange();
+    lastVisibleRange = range;
+    if (range) {
+      for (const chart of charts.slice(1)) {
+        try { chart.timeScale().setVisibleLogicalRange(range); } catch (_) { /* ignore */ }
+      }
+    }
+  } finally {
+    syncingTimeScale = wasSyncing;
+  }
+}
+
+function sizeChartToContainer(chart) {
+  const el = chartElement(chart);
+  if (!el || !chart) return;
+  const width = el.clientWidth;
+  const height = el.clientHeight || chartFallbackHeight(chart);
+  if (width > 0) {
+    chart.applyOptions({ width, height });
   }
 }
 
@@ -424,10 +454,12 @@ function ensureFlowCharts() {
   bindChartInteractions(volumeChart, flowCharts);
 
   flowChartsReady = true;
+  for (const chart of flowCharts()) sizeChartToContainer(chart);
   if (pendingFlowData) {
     applyFlowSeriesData(pendingFlowData);
     pendingFlowData = null;
   }
+  fitChartsToWidth(flowCharts());
 }
 
 function applyFlowSeriesData({ closeData, turnData, volumeData, items, turnFlags, volumeFlags }) {
@@ -454,19 +486,16 @@ function chartFallbackHeight(chart) {
   return 180;
 }
 
-function resizeVisibleCharts() {
+function resizeVisibleCharts({ fit = false } = {}) {
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      for (const chart of visibleCharts()) {
-        const el = chartElement(chart);
-        if (!el) continue;
-        const width = el.clientWidth;
-        const height = el.clientHeight || chartFallbackHeight(chart);
-        if (width > 0) {
-          chart.applyOptions({ width, height });
-        }
+      const charts = visibleCharts();
+      for (const chart of charts) sizeChartToContainer(chart);
+      if (fit || !lastVisibleRange) {
+        fitChartsToWidth(charts);
+      } else {
+        applyVisibleRange(charts);
       }
-      applyVisibleRange(visibleCharts());
     });
   });
 }
@@ -490,7 +519,8 @@ function switchTab(tab) {
 
   hideHoverInfo();
   if (tab === 'flow') ensureFlowCharts();
-  resizeVisibleCharts();
+  // Tab panels were hidden; force fit so series fill the full width.
+  resizeVisibleCharts({ fit: true });
 }
 
 async function loadKlines() {
@@ -599,9 +629,11 @@ async function loadKlines() {
     });
 
     lastVisibleRange = null;
-    applyVisibleRange(visibleCharts());
-    if (flowChartsReady) {
-      applyVisibleRange(activeTab === 'kline' ? flowCharts() : klineCharts());
+    resizeVisibleCharts({ fit: true });
+    if (flowChartsReady && activeTab === 'kline') {
+      // Keep the hidden flow group in sync for the next tab switch.
+      for (const chart of flowCharts()) sizeChartToContainer(chart);
+      fitChartsToWidth(flowCharts());
     }
 
     let suspMsg = '';
