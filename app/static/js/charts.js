@@ -1,9 +1,11 @@
 let priceChart = null;
 let volumeChart = null;
 let turnChart = null;
+let pctChgChart = null;
 let candleSeries = null;
 let volumeSeries = null;
 let turnSeries = null;
+let pctChgSeries = null;
 let klineByTime = new Map();
 let spikeDays = [];
 let lastVisibleRange = null;
@@ -12,7 +14,7 @@ let syncingCrosshair = false;
 let syncingTimeScale = false;
 let chartsReady = false;
 let flowChartsReady = false;
-/** @type {null | { turnData: any[], volumeData: any[], items: any[], turnFlags: boolean[], volumeFlags: boolean[] }} */
+/** @type {null | { pctChgData: any[], turnData: any[], volumeData: any[], items: any[], turnFlags: boolean[], volumeFlags: boolean[] }} */
 let pendingFlowData = null;
 
 /** Spike = value ≥ lookback median × ratio (robust to earlier spikes in the window). */
@@ -32,6 +34,7 @@ const els = {
   priceChart: document.getElementById('priceChart'),
   volumeChart: document.getElementById('volumeChart'),
   turnChart: document.getElementById('turnChart'),
+  pctChgChart: document.getElementById('pctChgChart'),
   jobStatus: document.getElementById('jobStatus'),
   chartHover: document.getElementById('chartHover'),
 };
@@ -190,7 +193,7 @@ function klineCharts() {
 }
 
 function flowCharts() {
-  return [turnChart, volumeChart].filter(Boolean);
+  return [pctChgChart, turnChart, volumeChart].filter(Boolean);
 }
 
 function visibleCharts() {
@@ -261,9 +264,9 @@ function showHoverInfo(time) {
     els.chartHover.innerHTML = `
       <span class="hover-date">${formatChartDate(row.time)}</span>
       ${spike ? `<span class="hover-spike">${spike}</span>` : ''}
+      <span class="${pctCls}"><em>涨跌</em>${formatPctChg(row.pct_chg)}</span>
       <span><em>换手</em>${formatTurn(row.turn)}</span>
       <span><em>量</em>${formatVolume(row.volume)}</span>
-      <span class="${pctCls}"><em>涨跌</em>${formatPctChg(row.pct_chg)}</span>
       <span class="${cls}"><em>收</em>${formatPrice(row.close)}</span>
     `;
     return;
@@ -344,6 +347,9 @@ function setCrosshairsForTime(time, except) {
       }
       return;
     }
+    if (except !== pctChgChart && pctChgSeries) {
+      pctChgChart.setCrosshairPosition(bar.pct_chg ?? 0, time, pctChgSeries);
+    }
     if (except !== turnChart && turnSeries) {
       turnChart.setCrosshairPosition(bar.turn ?? 0, time, turnSeries);
     }
@@ -390,7 +396,23 @@ function ensureFlowCharts() {
   if (flowChartsReady || typeof LightweightCharts === 'undefined') return;
   const chartTheme = buildChartTheme();
 
-  turnChart = LightweightCharts.createChart(els.turnChart, { ...chartTheme, height: 220 });
+  pctChgChart = LightweightCharts.createChart(els.pctChgChart, { ...chartTheme, height: 180 });
+  pctChgSeries = pctChgChart.addLineSeries({
+    color: '#d4a853',
+    lineWidth: 2,
+    priceFormat: { type: 'custom', formatter: (v) => `${Number(v).toFixed(2)}%` },
+  });
+  pctChgSeries.createPriceLine({
+    price: 0,
+    color: 'rgba(148,163,184,0.35)',
+    lineWidth: 1,
+    lineStyle: 2,
+    axisLabelVisible: false,
+  });
+  pctChgChart.timeScale().applyOptions({ visible: false });
+  bindChartInteractions(pctChgChart, flowCharts);
+
+  turnChart = LightweightCharts.createChart(els.turnChart, { ...chartTheme, height: 180 });
   turnSeries = turnChart.addLineSeries({
     color: '#60a5fa',
     lineWidth: 2,
@@ -399,7 +421,7 @@ function ensureFlowCharts() {
   turnChart.timeScale().applyOptions({ visible: false });
   bindChartInteractions(turnChart, flowCharts);
 
-  volumeChart = LightweightCharts.createChart(els.volumeChart, { ...chartTheme, height: 200 });
+  volumeChart = LightweightCharts.createChart(els.volumeChart, { ...chartTheme, height: 180 });
   volumeSeries = volumeChart.addHistogramSeries({
     priceFormat: { type: 'volume' },
     priceScaleId: '',
@@ -415,27 +437,38 @@ function ensureFlowCharts() {
   }
 }
 
-function applyFlowSeriesData({ turnData, volumeData, items, turnFlags, volumeFlags }) {
+function applyFlowSeriesData({ pctChgData, turnData, volumeData, items, turnFlags, volumeFlags }) {
   if (!flowChartsReady) {
-    pendingFlowData = { turnData, volumeData, items, turnFlags, volumeFlags };
+    pendingFlowData = { pctChgData, turnData, volumeData, items, turnFlags, volumeFlags };
     return;
   }
+  pctChgSeries.setData(pctChgData);
   turnSeries.setData(turnData);
   volumeSeries.setData(volumeData);
   applySpikeMarkers(items, turnFlags, volumeFlags);
+}
+
+function chartElement(chart) {
+  if (chart === priceChart) return els.priceChart;
+  if (chart === pctChgChart) return els.pctChgChart;
+  if (chart === turnChart) return els.turnChart;
+  if (chart === volumeChart) return els.volumeChart;
+  return null;
+}
+
+function chartFallbackHeight(chart) {
+  if (chart === priceChart) return 480;
+  return 180;
 }
 
 function resizeVisibleCharts() {
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       for (const chart of visibleCharts()) {
-        const el = chart === priceChart
-          ? els.priceChart
-          : (chart === turnChart ? els.turnChart : els.volumeChart);
+        const el = chartElement(chart);
         if (!el) continue;
         const width = el.clientWidth;
-        const height = el.clientHeight
-          || (chart === priceChart ? 480 : (chart === turnChart ? 220 : 200));
+        const height = el.clientHeight || chartFallbackHeight(chart);
         if (width > 0) {
           chart.applyOptions({ width, height });
         }
@@ -495,6 +528,7 @@ async function loadKlines() {
       lastVisibleRange = null;
       candleSeries.setData([]);
       if (flowChartsReady) {
+        pctChgSeries.setData([]);
         volumeSeries.setData([]);
         turnSeries.setData([]);
         clearSpikeMarkers();
@@ -539,6 +573,10 @@ async function loadKlines() {
       time: d.time, open: d.open, high: d.high, low: d.low, close: d.close,
     })));
 
+    const pctChgData = data.items.map(d => ({
+      time: d.time,
+      value: d.pct_chg == null ? 0 : Number(d.pct_chg),
+    }));
     const turnData = data.items.map(d => ({
       time: d.time,
       value: d.turn == null ? 0 : Number(d.turn),
@@ -559,6 +597,7 @@ async function loadKlines() {
       };
     });
     applyFlowSeriesData({
+      pctChgData,
       turnData,
       volumeData,
       items: data.items,

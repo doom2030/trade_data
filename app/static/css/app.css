@@ -447,13 +447,16 @@ input[type="date"].form-input {
   letter-spacing: 0;
 }
 #priceChart { height: min(58vh, 520px); min-height: 420px; }
-#turnChart { height: 230px; }
-#volumeChart { height: 210px; border-top: 1px solid var(--border-subtle); }
+#pctChgChart { height: 190px; }
+#turnChart { height: 190px; border-top: 1px solid var(--border-subtle); }
+#volumeChart { height: 190px; border-top: 1px solid var(--border-subtle); }
 /* Hide TradingView attribution if a library build ignores attributionLogo:false */
 #priceChart a[href*="tradingview"],
+#pctChgChart a[href*="tradingview"],
 #volumeChart a[href*="tradingview"],
 #turnChart a[href*="tradingview"],
 #priceChart [class*="attribution"],
+#pctChgChart [class*="attribution"],
 #volumeChart [class*="attribution"],
 #turnChart [class*="attribution"] {
   display: none !important;
@@ -622,6 +625,7 @@ input[type="date"].form-input {
     padding-right: 18px;
   }
   #priceChart { height: 420px; min-height: 360px; }
-  #turnChart { height: 210px; }
-  #volumeChart { height: 190px; }
+  #pctChgChart { height: 170px; }
+  #turnChart { height: 170px; }
+  #volumeChart { height: 170px; }
 }
