@@ -251,6 +251,24 @@ html[data-theme="light"] .theme-toggle .icon-moon { display: none; }
 }
 .data-table tr:hover td { background: var(--bg-hover); color: var(--text-primary); }
 .data-table .mono { font-family: var(--font-mono); font-size: 13px; }
+.row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  white-space: nowrap;
+}
+.inline-form { display: inline; margin: 0; }
+.btn-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-decoration: none;
+}
+.btn-link:hover { color: var(--gold); }
+.favorite-on { color: var(--gold); font-size: 13px; }
 .badge { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; }
 .badge-active, .badge-success { background: rgba(52,211,153,0.12); color: var(--green); }
 .badge-excluded, .badge-partial { background: rgba(251,191,36,0.12); color: var(--amber); }

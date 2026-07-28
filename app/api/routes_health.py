@@ -16,6 +16,7 @@ REQUIRED_TABLES = (
     "trade_calendar",
     "industry_board",
     "stock_industry_board",
+    "stock_favorite",
 )
 
 

@@ -123,6 +123,15 @@ class StockIndustryBoard(Base):
     )
 
 
+class StockFavorite(Base):
+    __tablename__ = "stock_favorite"
+
+    symbol: Mapped[str] = mapped_column(Text, ForeignKey("stock_master.symbol"), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (Index("idx_stock_favorite_created_at", "created_at"),)
+
+
 class TradeCalendar(Base):
     __tablename__ = "trade_calendar"
 

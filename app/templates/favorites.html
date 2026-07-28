@@ -1,18 +1,14 @@
 {% extends "base.html" %}
-{% block title %}{{ industry_name }}{% endblock %}
+{% block title %}个人收藏{% endblock %}
 {% block content %}
 <div class="page-header">
-  <h2>{{ industry_name }}</h2>
-  <p>行业板块成分股 · {{ symbols | length }} 只</p>
+  <h2>个人收藏</h2>
+  <p>已收藏股票 · {{ symbols | length }} 只</p>
 </div>
 
 {% if message %}
 <div class="alert-success glass-panel" style="padding:16px 24px;margin-bottom:20px">{{ message }}</div>
 {% endif %}
-
-<div class="quick-actions">
-  <a href="/industries" class="btn btn-secondary">← 返回行业分类</a>
-</div>
 
 <div class="glass-panel">
   {% if symbols %}
@@ -23,6 +19,7 @@
           <th>代码</th>
           <th>名称</th>
           <th>板块</th>
+          <th>行业</th>
           <th>状态</th>
           <th></th>
         </tr>
@@ -33,19 +30,20 @@
           <td class="mono">{{ s.symbol }}</td>
           <td>{{ s.name }}</td>
           <td>{{ board_label(s.board) }}</td>
-          <td><span class="badge badge-{{ s.status if s.status in ['active','excluded','inactive'] else 'active' }}">{{ status_label(s.status) }}</span></td>
+          <td>{{ s.current_industry or '-' }}</td>
+          <td>
+            {% if s.status == 'active' %}<span class="badge badge-active">{{ status_label(s.status) }}</span>
+            {% elif s.status == 'excluded' %}<span class="badge badge-excluded">{{ status_label(s.status) }}</span>
+            {% else %}<span class="badge badge-inactive">{{ status_label(s.status) }}</span>{% endif %}
+          </td>
           <td>
             <div class="row-actions">
-              <a href="/charts?symbol={{ s.symbol }}">K 线</a>
-              {% if s.symbol in favorited_symbols %}
-              <span class="favorite-on">已收藏</span>
-              {% else %}
+              <a href="/charts?symbol={{ s.symbol }}">看 K 线</a>
               <form method="post" action="/favorites/toggle" class="inline-form">
                 <input type="hidden" name="symbol" value="{{ s.symbol }}">
-                <input type="hidden" name="next" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">
-                <button type="submit" class="btn-link">收藏</button>
+                <input type="hidden" name="next" value="/favorites">
+                <button type="submit" class="btn btn-secondary btn-sm">删除</button>
               </form>
-              {% endif %}
             </div>
           </td>
         </tr>
@@ -54,7 +52,10 @@
     </table>
   </div>
   {% else %}
-  <div class="empty-state"><p>该行业暂无成分股</p></div>
+  <div class="empty-state">
+    <p>暂无收藏股票</p>
+    <p style="margin-top:8px;font-size:13px;color:var(--text-muted)">可在「股票池」或「行业分类」中点击收藏</p>
+  </div>
   {% endif %}
 </div>
 {% endblock %}

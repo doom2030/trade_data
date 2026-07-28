@@ -6,6 +6,10 @@
   <p>四板块当前在市个股 · 本页 {{ symbols | length }} 条{% if board_counts.get('') is not none %} · 全市场 {{ board_counts[''] }} 条{% endif %}</p>
 </div>
 
+{% if message %}
+<div class="alert-success glass-panel" style="padding:16px 24px;margin-bottom:20px">{{ message }}</div>
+{% endif %}
+
 <nav class="board-tabs glass-panel" aria-label="板块切换">
   {% for tab in board_tabs %}
   <a
@@ -90,7 +94,20 @@
             {% elif s.status == 'excluded' %}<span class="badge badge-excluded">{{ status_label(s.status) }}</span>
             {% else %}<span class="badge badge-inactive">{{ status_label(s.status) }}</span>{% endif %}
           </td>
-          <td><a href="/charts?symbol={{ s.symbol }}">看 K 线</a></td>
+          <td>
+            <div class="row-actions">
+              <a href="/charts?symbol={{ s.symbol }}">看 K 线</a>
+              {% if s.symbol in favorited_symbols %}
+              <span class="favorite-on">已收藏</span>
+              {% else %}
+              <form method="post" action="/favorites/toggle" class="inline-form">
+                <input type="hidden" name="symbol" value="{{ s.symbol }}">
+                <input type="hidden" name="next" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">
+                <button type="submit" class="btn-link">收藏</button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
         </tr>
         {% endfor %}
       </tbody>

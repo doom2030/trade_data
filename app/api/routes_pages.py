@@ -1,5 +1,5 @@
 from datetime import date, timedelta
-from urllib.parse import quote, unquote
+from urllib.parse import parse_qsl, quote, unquote, urlencode, urlsplit, urlunsplit
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
@@ -11,6 +11,7 @@ from app.core.templates import JOB_TYPE_LABELS, templates
 from app.models import CollectJob, CollectJobItem
 from app.schemas.kline import BackfillRequest
 from app.services.dashboard_service import DashboardService
+from app.services.favorite_service import FavoriteService
 from app.services.industry_query_service import IndustryQueryService
 from app.services.job_command_service import JobCommandService
 from app.services.job_query_service import JobQueryService
@@ -32,7 +33,19 @@ def _ctx(request: Request, active_page: str, **extra):
 
 
 def _redirect_with_message(path: str, message: str) -> RedirectResponse:
-    return RedirectResponse(f"{path}?message={quote(message)}", status_code=303)
+    sep = "&" if "?" in path else "?"
+    return RedirectResponse(f"{path}{sep}message={quote(message)}", status_code=303)
+
+
+def _safe_next_path(next_path: str | None, fallback: str = "/favorites") -> str:
+    if not next_path:
+        return fallback
+    path = next_path.strip()
+    if not path.startswith("/") or path.startswith("//"):
+        return fallback
+    parts = urlsplit(path)
+    query = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True) if k != "message"]
+    return urlunsplit(("", "", parts.path, urlencode(query), ""))
 
 
 @router.get("/")
@@ -84,11 +97,13 @@ def symbols_page(
     keyword: str | None = None,
     industry: str | None = None,
     include_excluded: bool = Query(False),
+    message: str | None = None,
 ):
     svc = SymbolQueryService(db)
     symbols = svc.query_symbols(board, status, keyword, include_excluded, industry)
     board_counts = svc.count_by_board(status, keyword, include_excluded, industry=None)
     industries = svc.list_industries(board, status, include_excluded)
+    favorited_symbols = FavoriteService(db).list_favorited_symbols()
     return templates.TemplateResponse(
         request,
         "symbols.html",
@@ -104,6 +119,8 @@ def symbols_page(
             board_tabs=svc.board_tabs(),
             board_counts=board_counts,
             industries=industries,
+            favorited_symbols=favorited_symbols,
+            message=message,
         ),
     )
 
@@ -119,14 +136,54 @@ def industries_page(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/industries/{industry_name:path}")
-def industry_detail_page(industry_name: str, request: Request, db: Session = Depends(get_db)):
+def industry_detail_page(
+    industry_name: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    message: str | None = None,
+):
     name = unquote(industry_name)
     symbols = IndustryQueryService(db).list_symbols_by_industry(name)
+    favorited_symbols = FavoriteService(db).list_favorited_symbols()
     return templates.TemplateResponse(
         request,
         "industry_detail.html",
-        _ctx(request, "industries", industry_name=name, symbols=symbols),
+        _ctx(
+            request,
+            "industries",
+            industry_name=name,
+            symbols=symbols,
+            favorited_symbols=favorited_symbols,
+            message=message,
+        ),
     )
+
+
+@router.get("/favorites")
+def favorites_page(request: Request, db: Session = Depends(get_db), message: str | None = None):
+    symbols = FavoriteService(db).list_favorites()
+    return templates.TemplateResponse(
+        request,
+        "favorites.html",
+        _ctx(request, "favorites", symbols=symbols, message=message),
+    )
+
+
+@router.post("/favorites/toggle")
+def favorites_toggle(
+    request: Request,
+    db: Session = Depends(get_db),
+    symbol: str = Form(...),
+    next: str | None = Form(None),
+):
+    symbol = symbol.strip()
+    redirect_to = _safe_next_path(next)
+    try:
+        favorited = FavoriteService(db).toggle(symbol)
+    except ValueError as e:
+        return _redirect_with_message(redirect_to, str(e))
+    msg = f"已收藏 {symbol}" if favorited else f"已取消收藏 {symbol}"
+    return _redirect_with_message(redirect_to, msg)
 
 
 @router.get("/jobs")
