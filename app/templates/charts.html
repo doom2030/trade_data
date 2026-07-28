@@ -55,7 +55,7 @@
 
 <nav class="chart-tabs glass-panel" id="chartTabs" role="tablist" aria-label="图表视图">
   <button type="button" class="chart-tab active" role="tab" aria-selected="true" data-tab="kline">K 线图</button>
-  <button type="button" class="chart-tab" role="tab" aria-selected="false" data-tab="flow">涨跌 · 换手 · 成交量</button>
+  <button type="button" class="chart-tab" role="tab" aria-selected="false" data-tab="flow">股价 · 换手 · 成交量</button>
 </nav>
 
 <div class="glass-panel chart-container">
@@ -67,8 +67,8 @@
     <div id="priceChart"></div>
   </div>
   <div class="chart-panel" data-panel="flow" role="tabpanel" hidden>
-    <div class="chart-pane-label">涨跌幅</div>
-    <div id="pctChgChart"></div>
+    <div class="chart-pane-label">股价 · 收盘价</div>
+    <div id="closeChart"></div>
     <div class="chart-pane-label">换手率 · 相对近 10 日中位数 ≥2 倍标为突增</div>
     <div id="turnChart"></div>
     <div class="chart-pane-label">成交量 · 橙色柱 / 标记为突增日</div>
@@ -84,5 +84,5 @@
     defaultSymbol: "{{ default_symbol or '' }}",
   };
 </script>
-<script src="/static/js/charts.js?v=6"></script>
+<script src="/static/js/charts.js?v=7"></script>
 {% endblock %}
